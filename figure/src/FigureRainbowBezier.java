@@ -210,6 +210,7 @@ public class FigureRainbowBezier extends MaxObject {
 		bp[_i][0] = p_last[0] + (p_last[0]-p_last2[0]);
 		bp[_i][1] = p_last[1] + (p_last[1]-p_last2[1]);
 		bp[_i][2] = p_last[2] + (p_last[2]-p_last2[2]);
+		pScale[_i] = (float) Math.random();
 		
 		// add point 2, same as point 1
 		_i = pointCount+1;
@@ -226,12 +227,14 @@ public class FigureRainbowBezier extends MaxObject {
 		bp[_i][0] = restrict(nx + (bp[_i-1][1] - ny)*dd + (float) Math.random()*0.2f-0.1f);
 		bp[_i][1] = restrict(ny -(bp[_i-1][0] - nx)*dd + (float) Math.random()*0.2f-0.1f);
 		bp[_i][2] = restrict(nz + (float) Math.random()*0.5f-0.25f);
+		pScale[_i] = (float) Math.random();
 		
 		// add point 3, specific goal point
 		_i = pointCount+2;
 		bp[_i][0] = nx;
 		bp[_i][1] = ny;
 		bp[_i][2] = nz;
+		pScale[_i] = (float) Math.random();
 		
 		pointCount+=3;
 
@@ -261,8 +264,9 @@ public class FigureRainbowBezier extends MaxObject {
 	public void draw() {
 		
 		// create local variables, to avoid conflict when life-updating variables while rendering
-		float _bp[][] = new float[pointCount][3];
 		int _pC = pointCount;
+		float _bp[][] = new float[_pC][3];
+		float _ps[] = new float[_pC];
 		
 		// if morphing, use mx[] as morphed values while px[] represents goal of morphing
 		for(int i=0; i<_pC; i++) {
@@ -272,6 +276,7 @@ public class FigureRainbowBezier extends MaxObject {
 			_bp[i][0] = mp[i][0];
 			_bp[i][1] = mp[i][1];
 			_bp[i][2] = mp[i][2];
+			_ps[i] = pScale[i];
 		}
 		
 		// more local variables
@@ -321,7 +326,7 @@ public class FigureRainbowBezier extends MaxObject {
 			
 	
 			sketch.call("glcolor", bandColor);
-			sketch.call("gllinewidth", pScale[0]*_sr);
+			sketch.call("gllinewidth", _ps[0]*_sr);
 			
 			
 			
@@ -337,7 +342,7 @@ public class FigureRainbowBezier extends MaxObject {
 				float ti = (segment!=0 && segment>=_pC-4) ? animCounter : 1.f;
 				for(float t=st; t<ti; t+=_add) {
 					
-					if(varyScale) sketch.call("gllinewidth", pScale[tToIndex(t,_pC)]*_sr);
+					if(varyScale) sketch.call("gllinewidth", scaleBetween(_ps[segment],_ps[segment+3],t)*_sr);	// _ps[tToIndex(t,_pC)]*_sr
 					
 	//				if(varyColor) 
 					
@@ -356,7 +361,7 @@ public class FigureRainbowBezier extends MaxObject {
 				if(ti>=1.f) {
 					// draw last point in curve, with fixed t=1.0 value, to make sure it is precise
 					float t=1.0f;
-					if(varyScale) sketch.call("gllinewidth", pScale[tToIndex(t,_pC)]*_sr);
+					if(varyScale) sketch.call("gllinewidth", scaleBetween(_ps[segment],_ps[segment+3],t)*_sr);
 					float[] _p = P(t, _segm);	// returns array with xyz of point
 					boolean endOfBezier = (segment+4 >= _pC) ? true : false;
 					float[] _p2 = endOfBezier ? P(t-_add, _segm) : P(_add, copyArray(_bp,segment+3,segment+7));
@@ -407,6 +412,10 @@ public class FigureRainbowBezier extends MaxObject {
 		// t between 0 and 1
 		// index = 0 to pointcount - 1
 		return (int) (t * (_pC-1));
+	}
+	
+	private float scaleBetween(float v1, float v2, float i) {
+		return v1 + (v2-v1)*i;
 	}
 	
 	private float[][] copyArray(float[][] array0, int from, int to) {
