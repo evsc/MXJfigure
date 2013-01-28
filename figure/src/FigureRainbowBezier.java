@@ -34,10 +34,8 @@ public class FigureRainbowBezier extends MaxObject {
 	private int bOrder = 3;			// bezier order (1st order, 2nd order, ... bezier curves)
 	private float bp[][];			// bezier points
 	private float bc[][];			// bezier colour
-	private float pScale[];
-	private boolean varyScale = false;
 	private boolean varyColor = false;
-	private float scaleRange = 0.1f;
+	
 	private int bSlices = 20;		// bezier slices
 	
 
@@ -53,9 +51,12 @@ public class FigureRainbowBezier extends MaxObject {
 	// rainbow
 	private int rMode = 1;			// rainbow building mode
 	private int rBands = 7;
-	private float rWidth = 0.2f;
-	private float[] rBase = {1,0,0};	// direction of bands distribution on base
-	private float[] rTop = {0,-1,0};		// direction of bands distribution on arch
+	private float pWidth[];
+	private float pScale[];
+	private float scaleRange = 1.0f;
+	private float widthRange = 0.2f;
+	private boolean varyScale = false;
+	private boolean varyWidth = false;
 	private float[] rPosition = {0,0,0};	// center position of rainbow (arch center on ground)
 	private float[] rSize = {1,1,1};		// scale of rainbow
 	private float rDir = 1;					// direction. -1 inverts direction of bands
@@ -65,11 +66,12 @@ public class FigureRainbowBezier extends MaxObject {
 	private float slew = 0.1f;
 	private float mp[][];				// morph points
 	private float mScale[];
+	private float mWidth[];
 	private float mPosition[] = {0,0,0};
 	private float mSize[] = {1,1,1};
-	private float mWidth = 0.2f;
 	private float mBands = 7;
 	private float mScaleRange = 0.1f;
+	private float mWidthRange = 0.2f;
 	
 	// animation
 	private boolean autoAnimate = false;
@@ -100,7 +102,7 @@ public class FigureRainbowBezier extends MaxObject {
 		sketch.setAttr("depth_enable", 1);
 		sketch.setAttr("antialias",0);
 		sketch.setAttr("glclearcolor", new Atom[]{Atom.newAtom(0.),Atom.newAtom(0.),Atom.newAtom(0.),Atom.newAtom(1.)});
-		sketch.setAttr("fsaa", 1);
+		sketch.setAttr("fsaa", 0);
 		sketch.send("automatic", 0);	/* set to not-automatic, to be able to use
 										   begin_capture and drawimmediate */
 
@@ -115,6 +117,8 @@ public class FigureRainbowBezier extends MaxObject {
 		pScale = new float[m];
 		mp = new float[m][3];
 		mScale = new float[m];
+		pWidth = new float[m];
+		mWidth = new float[m];
 	}
 	
 	
@@ -129,6 +133,7 @@ public class FigureRainbowBezier extends MaxObject {
 				bp[i][1] = (float) Math.random()*2-1.f;
 				bp[i][2] = (float) Math.random()*2-1.f;
 				pScale[i] = (float) Math.random();
+				pWidth[i] = (float) Math.random();
 			}
 			break;
 		case 1: // strict rainbow from 4 points
@@ -139,6 +144,7 @@ public class FigureRainbowBezier extends MaxObject {
 				bp[1][1] = bp[2][1] = rPosition[1] + rSize[1];
 				bp[0][2] = bp[1][2] = bp[2][2] = bp[3][2] = 0;
 				for(int i=0; i<pointCount; i++) pScale[i] = 1.0f;
+				for(int i=0; i<pointCount; i++) pWidth[i] = 1.0f;
 			break;
 			
 		case 2: // strict rainbow from 3 points
@@ -150,6 +156,7 @@ public class FigureRainbowBezier extends MaxObject {
 				bp[1][1] = rPosition[1] + rSize[1];
 				bp[0][2] = bp[1][2] = bp[2][2] = 0;
 				for(int i=0; i<pointCount; i++) pScale[i] = 1.0f;
+				for(int i=0; i<pointCount; i++) pWidth[i] = 1.0f;
 			break;
 		
 		case 3: // advance array of points, one new random point
@@ -159,11 +166,14 @@ public class FigureRainbowBezier extends MaxObject {
 						bp[i][1] = bp[i+1][1];
 						bp[i][2] = bp[i+1][2];
 					}
-					pScale[i] = (float) Math.random();
+					pScale[i] = pScale[i+1];
+					pWidth[i] = pWidth[i+1];
 				}
 				bp[pointCount-1][0] = (float) Math.random()*2-1.f;
 				bp[pointCount-1][1] = (float) Math.random()*2-1.f;
 				bp[pointCount-1][2] = (float) Math.random()*2-1.f;
+				pScale[pointCount-1] = (float) Math.random();
+				pWidth[pointCount-1] = (float) Math.random();
 			break;
 		
 			
@@ -193,6 +203,7 @@ public class FigureRainbowBezier extends MaxObject {
 				bp[i][1] = bp[i+3][1];
 				bp[i][2] = bp[i+3][2];
 				pScale[i] = pScale[i+3];
+				pWidth[i] = pWidth[i+3];
 			}
 			pointCount-=3;
 		}
@@ -211,6 +222,7 @@ public class FigureRainbowBezier extends MaxObject {
 		bp[_i][1] = p_last[1] + (p_last[1]-p_last2[1]);
 		bp[_i][2] = p_last[2] + (p_last[2]-p_last2[2]);
 		pScale[_i] = (float) Math.random();
+		pWidth[_i] = (float) Math.random();
 		
 		// add point 2, same as point 1
 		_i = pointCount+1;
@@ -228,6 +240,7 @@ public class FigureRainbowBezier extends MaxObject {
 		bp[_i][1] = restrict(ny -(bp[_i-1][0] - nx)*dd + (float) Math.random()*0.2f-0.1f);
 		bp[_i][2] = restrict(nz + (float) Math.random()*0.5f-0.25f);
 		pScale[_i] = (float) Math.random();
+		pWidth[_i] = (float) Math.random();
 		
 		// add point 3, specific goal point
 		_i = pointCount+2;
@@ -235,6 +248,7 @@ public class FigureRainbowBezier extends MaxObject {
 		bp[_i][1] = ny;
 		bp[_i][2] = nz;
 		pScale[_i] = (float) Math.random();
+		pWidth[_i] = (float) Math.random();
 		
 		pointCount+=3;
 
@@ -267,6 +281,7 @@ public class FigureRainbowBezier extends MaxObject {
 		int _pC = pointCount;
 		float _bp[][] = new float[_pC][3];
 		float _ps[] = new float[_pC];
+		float _pw[] = new float[_pC];
 		
 		// if morphing, use mx[] as morphed values while px[] represents goal of morphing
 		for(int i=0; i<_pC; i++) {
@@ -276,14 +291,15 @@ public class FigureRainbowBezier extends MaxObject {
 			_bp[i][0] = mp[i][0];
 			_bp[i][1] = mp[i][1];
 			_bp[i][2] = mp[i][2];
-			_ps[i] = pScale[i];
+			_ps[i] = (morphing) ? mScale[i] += (pScale[i]-mScale[i])*slew : pScale[i];
+			_pw[i] = (morphing) ? mWidth[i] += (pWidth[i]-mWidth[i])*slew : pWidth[i];
 		}
 		
 		// more local variables
 		mBands = (morphing) ? mBands += (rBands - mBands)*slew : rBands;
 		int _bands = (int) Math.floor(mBands);
-		mWidth = (morphing) ? mWidth += (rWidth - mWidth)*slew : rWidth;
-		float _w = mWidth;
+		mWidthRange = (morphing) ? mWidthRange += (widthRange - mWidthRange)*slew : widthRange;
+		float _sw = mWidthRange;
 		mScaleRange = (morphing) ? mScaleRange += (scaleRange - mScaleRange)*slew : scaleRange;
 		float _sr = mScaleRange;
 		float _add = 1.f / (float) bSlices;			// defines number of slices
@@ -326,9 +342,7 @@ public class FigureRainbowBezier extends MaxObject {
 			
 	
 			sketch.call("glcolor", bandColor);
-			sketch.call("gllinewidth", _ps[0]*_sr);
-			
-			
+			sketch.call("gllinewidth", _sr);
 			
 			int segment = 0;
 //			post("segment "+segment+" / pointCount "+_pC+" / pointCount-3 "+(_pC-3));
@@ -336,19 +350,24 @@ public class FigureRainbowBezier extends MaxObject {
 				float _segm[][] = copyArray(_bp,segment,segment+4);
 				
 				
+				if(varyScale) {
+//					float _nw = scaleBetween(_ps[segment],_ps[segment+3],t)*_sr;
+					float _nw = (0.7f + segment/3.f)*_sr;
+					sketch.call("gllinewidth", _nw);	// can only be called outside of glbegin-glend
+				}
 				sketch.call("glbegin", "line_strip");
+				
 			
-				float st = (segment==0) ? animCounter : 0.f;
-				float ti = (segment!=0 && segment>=_pC-4) ? animCounter : 1.f;
+				float st = (segment==0 && autoAnimate) ? animCounter : 0.f;
+				float ti = (segment!=0 && segment>=_pC-4 && autoAnimate) ? animCounter : 1.f;
 				for(float t=st; t<ti; t+=_add) {
-					
-					if(varyScale) sketch.call("gllinewidth", scaleBetween(_ps[segment],_ps[segment+3],t)*_sr);	// _ps[tToIndex(t,_pC)]*_sr
 					
 	//				if(varyColor) 
 					
 					float[] _p = P(t, _segm);			// returns array with xyz of main point
 					float[] _p2 = P(t+_add, _segm);	// get next point to be able to calculate offset
-					float[] _off = offsetPoint(_p,_p2,index*_w*_d);	// calculates offset vector
+					float _thew = (varyWidth) ? scaleBetween(_pw[segment],_pw[segment+3],t)*_sw : _sw;
+					float[] _off = offsetPoint(_p,_p2,index*_thew*_d);	// calculates offset vector
 					
 					// combine point with offset vector, depending on which rainbow bow we are drawing right now
 					float newx = _x + _p[0]*_sx + _off[0]*_sx;
@@ -361,11 +380,12 @@ public class FigureRainbowBezier extends MaxObject {
 				if(ti>=1.f) {
 					// draw last point in curve, with fixed t=1.0 value, to make sure it is precise
 					float t=1.0f;
-					if(varyScale) sketch.call("gllinewidth", scaleBetween(_ps[segment],_ps[segment+3],t)*_sr);
+//					if(varyScale) sketch.call("gllinewidth", scaleBetween(_ps[segment],_ps[segment+3],t)*_sr);
 					float[] _p = P(t, _segm);	// returns array with xyz of point
 					boolean endOfBezier = (segment+4 >= _pC) ? true : false;
 					float[] _p2 = endOfBezier ? P(t-_add, _segm) : P(_add, copyArray(_bp,segment+3,segment+7));
-					float[] _off = offsetPoint(_p,_p2,index*_w*_d);
+					float _thew = (varyWidth) ? scaleBetween(_pw[segment],_pw[segment+3],t)*_sw : _sw;
+					float[] _off = offsetPoint(_p,_p2,index*_thew*_d);
 					
 					// inverse offset on last point of curve, because p2 is the previous instead of the next point in the curve
 					float _inv = endOfBezier ? -1.f : 1.f;
@@ -400,10 +420,12 @@ public class FigureRainbowBezier extends MaxObject {
 		// call drawimmediate, to execute drawing of sketch object
 		sketch.call("drawimmediate");		
 		
-		animCounter+=_add;
-		if(animCounter>=1.0) {
-			animCounter=0.f;
-			addSegment();
+		if(autoAnimate) {
+			animCounter+=_add;
+			if(animCounter>=1.0) {
+				animCounter=0.f;
+				addSegment();
+			}
 		}
 	}
 	
@@ -415,6 +437,7 @@ public class FigureRainbowBezier extends MaxObject {
 	}
 	
 	private float scaleBetween(float v1, float v2, float i) {
+//		return (float) Math.random() + 0.1f;
 		return v1 + (v2-v1)*i;
 	}
 	
@@ -479,6 +502,14 @@ public class FigureRainbowBezier extends MaxObject {
 		return of;
 	}
 	
+	
+	public void randomizeWidth() {
+		for(int i=0; i<pointCount; i++) {
+			pScale[i] = (float) Math.random();
+			pWidth[i] = (float) Math.random();
+		}
+	}
+	
 	/* use opengl line_smooth command */
 	public void linesmooth(int v) {
 	    lineSmooth = (v==1) ? true : false;
@@ -505,17 +536,6 @@ public class FigureRainbowBezier extends MaxObject {
 		outColor[2] = b;
 	}
 	
-	public void rbase(float x, float y, float z) {
-		rBase[0] = x;
-		rBase[1] = y;
-		rBase[2] = z;
-	}
-	
-	public void rtop(float x, float y, float z) {
-		rTop[0] = x;
-		rTop[1] = y;
-		rTop[2] = z;
-	}
 	
 	/* turn outline on off */
 	public void outline(int v) {
@@ -540,6 +560,10 @@ public class FigureRainbowBezier extends MaxObject {
 	/* toggle, vary stroke width with scaleRange value */
 	public void varyscale(int v) {
 		varyScale = (v==1) ? true : false;
+	}
+	
+	public void varywidth(int v) {
+		varyWidth = (v==1) ? true : false;
 	}
 	
 	/* toggle display of bezier points and lines */
@@ -594,7 +618,7 @@ public class FigureRainbowBezier extends MaxObject {
 	
 	/* total width of all rainbow bands */
 	public void width(float v) {
-		rWidth = (v>0.1f) ? v : 0.1f;
+		widthRange = (v>0.1f) ? v : 0.1f;
 	}
 
 	/* set number of bezier points */
@@ -618,6 +642,10 @@ public class FigureRainbowBezier extends MaxObject {
 	public void mode(int v) {
 		rMode = (v>0) ? v : 0;
 		generateRainbow();
+	}
+	
+	public void animate(int v) {
+		autoAnimate = (v==1) ? true : false;
 	}
 	
 		
