@@ -25,13 +25,12 @@ public class FigureRainbowBezier extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 640;
+	private int texture_width = 640;	// TODO: include resize function
 	private int texture_height = 480;
 		
 	// Bezier curve, rainbow backbone
 	private int pointCount = 4;
 	private int maxPoints = 10;
-	private int bOrder = 3;			// bezier order (1st order, 2nd order, ... bezier curves)
 	private float bp[][];			// bezier points
 	private float bc[][];			// bezier colour
 	private boolean varyColor = false;
@@ -88,7 +87,7 @@ public class FigureRainbowBezier extends MaxObject {
 	/* instantiate mxj with render context as argument */
 	public FigureRainbowBezier(String c) {
 		context = c;			// 	render context
-		declareIO(2,1);			/* 	delare number of inlets and outlets, 
+		declareIO(2,1);			/* 	declare number of inlets and outlets, 
  									of DataTypes.ALL */
 		
 		// assist message for inlets and outlets (for mouse hover)
@@ -540,11 +539,6 @@ public class FigureRainbowBezier extends MaxObject {
 	/* turn outline on off */
 	public void outline(int v) {
 		outLine = (v==1) ? true : false;
-	}
-	
-	/* degree of order of bezier curve, the higher the softer */
-	public void order(int v) {
-		bOrder = (v>0) ? v : 1;
 	}
 	
 	/* resolution of bezier curve */
