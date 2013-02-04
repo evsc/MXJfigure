@@ -26,23 +26,49 @@ public class FigureAurora extends MaxObject {
 	
 	// Bezier curve, aurora backbone
 	private float[] aPos = {0,0,0};
+	private float aBeta = 0.f;			// birdview angle between outer bezier points
 	private float[] aSize = {1,1,1};
-	private int mbPointCount = 4;		// main bezier point count, leave count flexible just in case
-	private float mbPoint[][];			// main bezier points
-	private float mbLength = 0.5f;		// distance between outer points
-	private float mbHeight = 0.5f;		// z of inner bezier points defines height of curve
-	private float mbAngle = 0.1f;		// angle of curve, leaning right or left ?
+	private int abPointCount = 4;		// main bezier point count, leave count flexible just in case
+	private float abPoint[][];			// main bezier points
+	private float abLength = 0.5f;		// distance between outer points
+	private float abHeight = 0.5f;		// z of inner bezier points defines height of curve
+	private float abAngle = 0.0f;		// angle of curve, leaning right or left ?
 	
 	// aurora rays
 	private int rayCount = 50;
 	private float rayHeight = 1.f;
 	private float rayWidth = 1.f;
+	private int raySegments = 10;
+	private boolean rayColorByHeight = true;
+	private float rayColorOffset = 0.4f;
+	private float rayColorMult = 0.5f;
+	private float[] aVanishingPoint = {0,100,0};
+	
+	// noise
+	private int noiseCount = 50;
+	private int noiseF = 10;	// noise frequency
+	private float[] noisea;
+	private float[] noiseb;
+	private float noiseWeight[] = {0.1f,0.01f};
+	
+	// morphing
+	private boolean morphing = false;
+	private float slew = 0.1f;			// morphing speed
+	private int mRayCount = 50;
+	private float mPos[] = {0,0,0};
+	private float mSize[] = {1,1,1};
+	private float mbPoint[][];
+	private float[] mVanishingPoint = {0,100,0};
+//	private float mbHeight = 0.5f;
+//	private float mbAngle = 0.0f;
+	private float mRayHeight = 1.f;
 	
 	// display parameters
 	private boolean lineSmooth = false;
 	private int sketchDepthEnable = 0;
 	private int sketchAntialias = 0;
 	private int sketchFsaa = 0;
+	private int sketchBlendEnable = 0;
 
 	
 	/* === === === === === === === main functions === === === === === === === === */
@@ -68,6 +94,8 @@ public class FigureAurora extends MaxObject {
 		sketch = new JitterObject("jit.gl.sketch");
 		sketch.setAttr("drawto", context);
 		sketch.setAttr("depth_enable", sketchDepthEnable);
+		sketch.setAttr("blend_enable", sketchBlendEnable);
+		sketch.setAttr("blend_mode", new Atom[]{Atom.newAtom(6), Atom.newAtom(7)});
 		sketch.setAttr("antialias",sketchAntialias);
 		sketch.setAttr("glclearcolor", new Atom[]{Atom.newAtom(0.),Atom.newAtom(0.),Atom.newAtom(0.),Atom.newAtom(1.)});
 		sketch.setAttr("fsaa", sketchFsaa);
@@ -81,12 +109,15 @@ public class FigureAurora extends MaxObject {
 		texture.setAttr("drawto", context);
 		texture.setAttr("dim", new Atom[]{Atom.newAtom(texture_width),Atom.newAtom(texture_height)}); 
 		// TODO: resize dimension
-		
+
 		// set arrays
-		mbPoint = new float[mbPointCount][3];
+		abPoint = new float[abPointCount][3];
+		mbPoint = new float[abPointCount][3];
 		
 		setMainBezier();	// sets outer bezier points to standard position
 		setBezierPoints();	// define inner bezier points based on outer
+		
+		setNoise();			// set noise
 	}
 	
 	/* draws and captures the aurora drawing to sketch object, 
@@ -103,17 +134,34 @@ public class FigureAurora extends MaxObject {
 	public void draw() {
 		
 		// create local variables, to avoid conflict when life-updating variables while rendering
-		int _mbpC = mbPointCount;
+		int _mbpC = abPointCount;
 		float _mbP[][] = new float[_mbpC][3];
 		for(int i=0; i<_mbpC; i++) {
-			for(int j=0; j<3; j++) _mbP[i][j] = mbPoint[i][j];
+			for(int j=0; j<3; j++) {
+				mbPoint[i][j] = (morphing) ? mbPoint[i][j] += (abPoint[i][j]-mbPoint[i][j])*slew : abPoint[i][j];
+				_mbP[i][j] = mbPoint[i][j];
+			}
 		}
-		int _r = rayCount;
-		float _rh = rayHeight;
+		mRayCount = (morphing) ? (int) (mRayCount += (rayCount-mRayCount)*slew) : rayCount;
+		int _r = mRayCount;
+		mRayHeight = (morphing) ? mRayHeight += (rayHeight-mRayHeight)*slew : rayHeight;
+		float _rh = mRayHeight;
 		float _rw = rayWidth;
-		float _size[] = { aSize[0], aSize[1], aSize[2] };
-		float _pos[] = { aPos[0], aPos[1], aPos[2] };
+		int _rs = raySegments;
+		float _rco = rayColorOffset;
+		float _rcm = rayColorMult;
 		
+		float _size[] = new float[3];
+		float _pos[] = new float[3];
+		float _vp[] = new float[3];
+		for(int i=0; i<3; i++) {
+			mSize[i] = (morphing) ? mSize[i] += (aSize[i]-mSize[i])*slew : aSize[i];
+			_size[i] = mSize[i];
+			mPos[i] = (morphing) ? mPos[i] += (aPos[i]-mPos[i])*slew : aPos[i];
+			_pos[i] = mPos[i];
+			mVanishingPoint[i] = (morphing) ? mVanishingPoint[i] += (aVanishingPoint[i]-mVanishingPoint[i])*slew : aVanishingPoint[i];
+			_vp[i] = mVanishingPoint[i];
+		}
 		
 		// start drawing by reseting sketch object
 		sketch.call("reset");
@@ -122,7 +170,6 @@ public class FigureAurora extends MaxObject {
 		else sketch.call("gldisable", "line_smooth");
 		
 		Atom[] c = auroraColor(0.5f);
-		
 		sketch.call("glcolor", c);
 		sketch.call("gllinewidth", _rw);
 		
@@ -134,12 +181,31 @@ public class FigureAurora extends MaxObject {
 			
 			float[] _p = P(add*r, _mbP);			// returns array with xyz of main point
 			
-			float _nx = _pos[0] + _p[0]*_size[0];
-			float _ny = _pos[1] + _p[1]*_size[1];
-			float _nz = _pos[2] + _p[2]*_size[2];
-			sketch.call("glvertex", new Atom[]{Atom.newAtom(_nx),Atom.newAtom(_ny),Atom.newAtom(_nz)});
-			_ny = _pos[1] + (_p[1]+_rh)*_size[1];
-			sketch.call("glvertex", new Atom[]{Atom.newAtom(_nx),Atom.newAtom(_ny),Atom.newAtom(_nz)});
+			float _noisea = getNoiseA(r/(float)_r)*noiseWeight[0];
+			float _noiseb = getNoiseB(r/(float)_r)*noiseWeight[1];
+			float _noisex = (float) (_noisea*Math.sin(aBeta) + _noiseb*Math.cos(aBeta));
+			float _noisez = (float) (_noisea*Math.cos(aBeta) + _noiseb*Math.sin(aBeta));
+			
+			float _nx1 = _pos[0] + (_p[0]+_noisex)*_size[0];
+			float _ny1 = _pos[1] + (_p[1])*_size[1];
+			float _nz1 = _pos[2] + (_p[2]+_noisez)*_size[2];
+			
+			float[] _n1 = { _nx1, _ny1, _nz1 };
+			float[] _n2 = (_vp[1]>0) ? vectorTowards(_n1, _vp, _rh*_size[1]) : vectorTowards(_n1, _vp, -_rh*_size[1]);
+			
+			for(int seg=0; seg<=_rs; seg++) {
+				float _segx = _nx1 + seg*(_n2[0]-_nx1)*(1.f/(float) _rs);
+				float _segy = _ny1 + seg*(_n2[1]-_ny1)*(1.f/(float) _rs);
+				float _segz = _nz1 + seg*(_n2[2]-_nz1)*(1.f/(float) _rs);
+				
+				sketch.call("glvertex", new Atom[]{Atom.newAtom(_segx),Atom.newAtom(_segy),Atom.newAtom(_segz)});
+				// TODO: aSize seems to influence color
+				Atom[] _segc = (rayColorByHeight) ? auroraColor((_segy-_rco-_pos[1])*_rcm) : auroraColor(seg/(float) _rs);
+				sketch.call("glcolor", _segc);
+				
+				
+			}
+			
 			
 			sketch.call("glend");
 		}
@@ -162,15 +228,15 @@ public class FigureAurora extends MaxObject {
 	/* set main bezier curve to standard symmetric position */
 	void setMainBezier() {
 		
-		float l = mbLength/2.0f;
+		float l = abLength/2.0f;
 		
-		mbPoint[0][0] = -l;	// x 	1st point
-		mbPoint[0][1] = 0.f;	// y
-		mbPoint[0][2] = 0.f;	// z
+		abPoint[0][0] = -l;	// x 	1st point
+		abPoint[0][1] = 0.f;	// y
+		abPoint[0][2] = 0.f;	// z
 		
-		mbPoint[mbPointCount-1][0] = l;		// x	last point
-		mbPoint[mbPointCount-1][1] = 0.f;	// y
-		mbPoint[mbPointCount-1][2] = 0.f;	// z
+		abPoint[abPointCount-1][0] = l;		// x	last point
+		abPoint[abPointCount-1][1] = 0.f;	// y
+		abPoint[abPointCount-1][2] = 0.f;	// z
 
 	}
 	
@@ -178,17 +244,20 @@ public class FigureAurora extends MaxObject {
 	void setBezierPoints() {
 		
 		
-		// tip over mbHeight by mbAngle
-		float newxz = (float) (Math.sin(mbAngle)*mbHeight);
-		float newh = (float) (Math.cos(mbAngle)*mbHeight);
+		// tip over abHeight by abAngle
+		float newxz = (float) (Math.sin(abAngle)*abHeight);
+		float newh = (float) (Math.cos(abAngle)*abHeight);
 		
 		// distance between first and last curve point
-		float dx = mbPoint[mbPointCount-2][0] - mbPoint[0][0];
-		float dy = mbPoint[mbPointCount-2][1] - mbPoint[0][1];
-		float dz = mbPoint[mbPointCount-2][2] - mbPoint[0][2];
+		float dx = abPoint[abPointCount-2][0] - abPoint[0][0];
+		float dy = abPoint[abPointCount-2][1] - abPoint[0][1];
+		float dz = abPoint[abPointCount-2][2] - abPoint[0][2];
 		float dl = (float) Math.sqrt(dx*dx + dy*dy + dz*dz);
+		float dbird = (float) Math.sqrt(dx*dx + dz*dz);
 		
-		// define tipped over mbHeight vector, by distance between endpoints
+		aBeta = (float) Math.asin(dz/dbird);
+		
+		// define tipped over abHeight vector, by distance between endpoints
 		float newx = newxz * dz/dl;
 		float newz = newxz * dx/dl;
 		
@@ -196,16 +265,16 @@ public class FigureAurora extends MaxObject {
 		
 		
 		// second bezier point
-		mbPoint[1][0] = mbPoint[0][0] + newx;
-		mbPoint[1][1] = mbPoint[0][1] + newh;
-		mbPoint[1][2] = mbPoint[0][2] + newz;
+		abPoint[1][0] = abPoint[0][0] + newx;
+		abPoint[1][1] = abPoint[0][1] + newh;
+		abPoint[1][2] = abPoint[0][2] + newz;
 		
 		// if more than 2 inbetween bezier points
 		
 		// second to last bezier point
-		mbPoint[mbPointCount-2][0] = mbPoint[mbPointCount-1][0] + newx;
-		mbPoint[mbPointCount-2][1] = mbPoint[mbPointCount-1][1] + newh;
-		mbPoint[mbPointCount-2][2] = mbPoint[mbPointCount-1][2] + newz;
+		abPoint[abPointCount-2][0] = abPoint[abPointCount-1][0] + newx;
+		abPoint[abPointCount-2][1] = abPoint[abPointCount-1][1] + newh;
+		abPoint[abPointCount-2][2] = abPoint[abPointCount-1][2] + newz;
 		
 	}
 	
@@ -219,9 +288,12 @@ public class FigureAurora extends MaxObject {
 	}
 	
 	private float auroraSpectrum(float v) {
-		float k = v*2.f;
-		float m = (k>1) ? 1 + ((float) Math.sin((k-1.f)*1.570796)) : 1 - (float) Math.cos(k*1.570796);
-		return m/2.0f;
+		float k = 0.5f - v*0.5f;					// 0.=red    0.5=green
+		k = (k>0.4f) ? k*=0.75f : k;				// TODO: finetune coloring, too choppy right now
+		k = (k<0.25f && k > 0.125f) ? k*1.5f : k;
+		return restrict(k,0.f,0.5f);
+//		float m = (k>1) ? 1 + ((float) Math.sin((k-1.f)*1.570796)) : 1 - (float) Math.cos(k*1.570796);
+//		return m/2.0f;
 	}
 	
 	
@@ -267,6 +339,57 @@ public class FigureAurora extends MaxObject {
 	}
 	
 	
+	
+	private void setNoise() {
+		
+		noisea = new float[noiseCount+noiseF];
+		noiseb = new float[noiseCount+noiseF];
+		
+		// random seed
+		for(int i=0; i<noiseCount+noiseF; i+=noiseF) {
+			noisea[i] = (float) Math.random()*2 - 1.f;
+			noiseb[i] = (float) Math.random()*2 - 1.f;
+		}
+		
+		// interpolation
+		for(int i=0; i<noiseCount; i+=noiseF) {
+			float a1 = noisea[i];
+			float a2 = noisea[i+noiseF];
+			float b1 = noiseb[i];
+			float b2 = noiseb[i+noiseF];
+			for(int j=i+1; j<i+noiseF; j++) {
+				float x = (j-i)/(float) (noiseF+1);
+				noisea[j] = cosineInterpolate(a1,a2,x);
+				noiseb[j] = cosineInterpolate(b1,b2,x);
+			}
+		}
+		
+		// additional smoothing
+		
+		
+		// smooth edges
+		
+		
+	}
+	
+	private float cosineInterpolate(float a, float b, float x) {
+		float ft = x*3.1415927f;
+		float f = (1.f - (float) Math.cos(ft)) * .5f;
+		return a*(1-f) + b*f;
+	}
+	
+	private float getNoiseA(float t) {
+		int p = (int) (t*noiseCount);
+		return noisea[p];
+	}
+	
+	private float getNoiseB(float t) {
+		int p = (int) (t*noiseCount);
+		return noiseb[p];
+	}
+	
+	
+	
 	/* === === === === === === === === ====== === === === === === === === === === */
 	/* === === === === === == helpful little functions == === === === === === === */
 	/* === === === === === === === === ====== === === === === === === === === === */
@@ -279,6 +402,17 @@ public class FigureAurora extends MaxObject {
 		if(v<min) return min;
 		if(v>max) return max;
 		return v;
+	}
+	
+	private float[] vectorTowards( float[] p1, float[] p2, float len) {
+		float[] distance = { p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2] };	// distance vector, p1 to p2
+		float distanceLength = (float) Math.sqrt(distance[0]*distance[0] + distance[1]*distance[1] + distance[2]*distance[2]);
+		float fact = len/distanceLength;
+		distance[0]*=fact;
+		distance[1]*=fact;
+		distance[2]*=fact;
+		float[] p = { p1[0]+distance[0], p1[1]+distance[1], p1[2]+distance[2] };
+		return p;
 	}
 	
 	
@@ -296,6 +430,15 @@ public class FigureAurora extends MaxObject {
 	public void depthEnable(int v) {
 		sketchDepthEnable = (v==1) ? 1 : 0;
 		sketch.setAttr("depth_enable", sketchDepthEnable);
+	}
+	
+	public void blendEnable(int v) {
+		sketchBlendEnable = (v==1) ? 1 : 0;
+		sketch.setAttr("blend_enable", sketchBlendEnable);
+	}
+	
+	public void blendMode(int b1, int b2) {
+		sketch.setAttr("blend_mode", new Atom[]{Atom.newAtom(b1), Atom.newAtom(b2)});
 	}
 	
 	public void antialias(int v) {
@@ -336,16 +479,16 @@ public class FigureAurora extends MaxObject {
 	}
 	
 	public void pA(float x, float y, float z) {
-		mbPoint[0][0] = x;
-		mbPoint[0][1] = y;
-		mbPoint[0][2] = z;
+		abPoint[0][0] = x;
+		abPoint[0][1] = y;
+		abPoint[0][2] = z;
 		setBezierPoints();
 	}
 	
 	public void pB(float x, float y, float z) {
-		mbPoint[mbPointCount-1][0] = x;
-		mbPoint[mbPointCount-1][1] = y;
-		mbPoint[mbPointCount-1][2] = z;
+		abPoint[abPointCount-1][0] = x;
+		abPoint[abPointCount-1][1] = y;
+		abPoint[abPointCount-1][2] = z;
 		setBezierPoints();
 	}
 	
@@ -362,25 +505,71 @@ public class FigureAurora extends MaxObject {
 		rayWidth = (v<1) ? 1 : v;
 	}
 	
+	public void raysegments(int v) {
+		raySegments = (v>2) ? v : 2;
+	}
+	
+	
+	public void vanishingpoint(float x, float y, float z) {
+		aVanishingPoint[0] = x;
+		aVanishingPoint[1] = y;
+		aVanishingPoint[2] = z;
+	}
+	
+	
 	public void curveLength(float v) {
-		mbLength = (v>0) ? v : 0.01f;
+		abLength = (v>0) ? v : 0.01f;
 		setMainBezier();	
 		setBezierPoints();
 	}
 	
 	public void curveAngle(float v) {
-		mbAngle = v;
+		abAngle = v;
 		setBezierPoints();
 	}
 	
 	public void curveHeight(float v) {
-		mbHeight = v;
+		abHeight = v;
 		setBezierPoints();
 	}
 	
 	
+	public void colorbyheight(int v) {
+		rayColorByHeight = (v==1) ? true : false;
+	}
 	
+	public void coloroffset(float v) {
+		rayColorOffset = v;
+	}
 	
+	public void colormult(float v) {
+		rayColorMult = v;
+	}
+	
+	/* toggle morphing */
+	public void morph(int v) {
+		morphing = (v==1) ? true : false;
+	}
+	
+	/* set morphing speed */
+	public void morphspeed(float v) {
+		slew = (v>0) ? v : 0.01f;
+	}
+	
+	public void noisecount(int v) {
+		noiseCount = (v>1) ? v : 1;
+		setNoise();
+	}
+	
+	public void noisef(int v) {
+		noiseF = (v>1) ? v : 1;
+		setNoise();
+	}
+	
+	public void noiseweight(float v1, float v2) {
+		noiseWeight[0] = v1;
+		noiseWeight[1] = v2;
+	}
 	
 
 }
