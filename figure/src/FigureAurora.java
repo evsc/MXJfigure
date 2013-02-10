@@ -35,18 +35,23 @@ public class FigureAurora extends MaxObject {
 	private float abAngle = 0.0f;		// angle of curve, leaning right or left ?
 	
 	// aurora rays
-	private int rayCount = 50;
+	private int rayCount = 100;
 	private float rayHeight = 1.f;
 	private float rayWidth = 1.f;
-	private int raySegments = 10;
+	private int raySegments = 4;
 	private boolean rayColorByHeight = true;
 	private float rayColorOffset = 0.4f;
 	private float rayColorMult = 0.5f;
 	private float[] aVanishingPoint = {0,100,0};
 	
 	// noise
-	private int noiseCount = 50;
+	private int noiseCount = 100;
 	private int noiseF = 10;	// noise frequency
+	private int noiseP = 0;		// noise pointer, for animating the noise
+	private int noiseStep = 2;
+	private boolean noiseAnimation = true;
+	private int noiseEdge = 0;
+	private boolean noiseSmoothEdge = false;
 	private float[] noisea;
 	private float[] noiseb;
 	private float noiseWeight[] = {0.1f,0.01f};
@@ -54,7 +59,7 @@ public class FigureAurora extends MaxObject {
 	// morphing
 	private boolean morphing = false;
 	private float slew = 0.1f;			// morphing speed
-	private int mRayCount = 50;
+	private int mRayCount = 100;
 	private float mPos[] = {0,0,0};
 	private float mSize[] = {1,1,1};
 	private float mbPoint[][];
@@ -132,6 +137,8 @@ public class FigureAurora extends MaxObject {
 	
 	/* draw aurora to jitter sketch object */
 	public void draw() {
+		
+		if(noiseAnimation) moveNoise();
 		
 		// create local variables, to avoid conflict when life-updating variables while rendering
 		int _mbpC = abPointCount;
@@ -342,17 +349,18 @@ public class FigureAurora extends MaxObject {
 	
 	private void setNoise() {
 		
-		noisea = new float[noiseCount+noiseF];
-		noiseb = new float[noiseCount+noiseF];
+		noiseP = 0;
+		noisea = new float[noiseCount+noiseF+1];	// noiseC is multiple of noiseF   o--o--o--o
+		noiseb = new float[noiseCount+noiseF+1];
 		
-		// random seed
-		for(int i=0; i<noiseCount+noiseF; i+=noiseF) {
+		// random seed in noiesF interval, needs to include first and last element!
+		for(int i=0; i<noiseCount+noiseF+1; i+=noiseF) {
 			noisea[i] = (float) Math.random()*2 - 1.f;
 			noiseb[i] = (float) Math.random()*2 - 1.f;
 		}
 		
 		// interpolation
-		for(int i=0; i<noiseCount; i+=noiseF) {
+		for(int i=0; i<=noiseCount; i+=noiseF) {
 			float a1 = noisea[i];
 			float a2 = noisea[i+noiseF];
 			float b1 = noiseb[i];
@@ -364,12 +372,41 @@ public class FigureAurora extends MaxObject {
 			}
 		}
 		
-		// additional smoothing
+		// additional smoothing  TODO
 		
 		
-		// smooth edges
+		// smooth edges   TODO
 		
 		
+	}
+	
+	public void moveNoise() {
+		noiseP+=noiseStep;
+		if(noiseP>=noiseF) {
+			
+			while(noiseP>=noiseF) noiseP-=noiseF;
+			//  move hole array
+			for(int i=0; i<=noiseCount; i++) {
+				noisea[i] = noisea[i+noiseF];
+				noiseb[i] = noiseb[i+noiseF];
+			}
+			
+			// new random seed at new end
+			noisea[noiseCount+noiseF] = (float) Math.random()*2 - 1.f;
+			noiseb[noiseCount+noiseF] = (float) Math.random()*2 - 1.f;
+			
+			// interpolate new segment
+			float a1 = noisea[noiseCount];
+			float a2 = noisea[noiseCount+noiseF];
+			float b1 = noiseb[noiseCount];
+			float b2 = noiseb[noiseCount+noiseF];
+			for(int j=noiseCount+1; j<noiseCount+noiseF; j++) {
+				float x = (j-noiseCount)/(float) (noiseF+1);
+				noisea[j] = cosineInterpolate(a1,a2,x);
+				noiseb[j] = cosineInterpolate(b1,b2,x);
+			}
+
+		}
 	}
 	
 	private float cosineInterpolate(float a, float b, float x) {
@@ -380,12 +417,30 @@ public class FigureAurora extends MaxObject {
 	
 	private float getNoiseA(float t) {
 		int p = (int) (t*noiseCount);
-		return noisea[p];
+//		p = noiseCount - p;
+		float m = 1.f;
+		if(noiseSmoothEdge) {
+			if(p<noiseEdge) {
+				m = p / (float) noiseEdge;
+			} else if(p > noiseCount-noiseEdge) {
+				m = (noiseCount-p-1) / (float) noiseEdge;
+			}
+		}
+		return noisea[p + noiseP] * m;
 	}
 	
 	private float getNoiseB(float t) {
 		int p = (int) (t*noiseCount);
-		return noiseb[p];
+//		p = noiseCount - p;
+		float m = 1.f;
+		if(noiseSmoothEdge) {
+			if(p<noiseEdge) {
+				m = p / (float) noiseEdge;
+			} else if(p > noiseCount-noiseEdge) {
+				m = (noiseCount-p-1) / (float) noiseEdge;
+			}
+		}
+		return noiseb[p + noiseP] * m;
 	}
 	
 	
@@ -495,6 +550,8 @@ public class FigureAurora extends MaxObject {
 	
 	public void raycount(int v) {
 		rayCount = (v>2) ? v : 2;
+		noiseCount = rayCount;
+		setNoise();
 	}
 	
 	public void rayheight(float v) {
@@ -556,10 +613,6 @@ public class FigureAurora extends MaxObject {
 		slew = (v>0) ? v : 0.01f;
 	}
 	
-	public void noisecount(int v) {
-		noiseCount = (v>1) ? v : 1;
-		setNoise();
-	}
 	
 	public void noisef(int v) {
 		noiseF = (v>1) ? v : 1;
@@ -571,5 +624,17 @@ public class FigureAurora extends MaxObject {
 		noiseWeight[1] = v2;
 	}
 	
+	public void noiseanimation(int v) {
+		noiseAnimation = (v==1) ? true : false;
+	}
+	
+	public void noiseedge(int v) {
+		noiseSmoothEdge = (v<=0) ? false : true;
+		noiseEdge = (v>0) ? v : 0;
+	}
+	
+	public void noisestep(int v) {
+		noiseStep = (v>0) ? v : 1;
+	}
 
 }
