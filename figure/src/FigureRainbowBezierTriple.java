@@ -213,7 +213,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 			float _w = mWidth;
 			mScaleRange = (morphing) ? mScaleRange += (scaleRange - mScaleRange)*slew : scaleRange;
 			float _sr = mScaleRange;
-			float _add = 1.f / (float) bSlices;			// defines number of slices
+			float _add = 1.f / (float) (bSlices+1);			// defines number of slices
 
 			mPosition[0] = (morphing) ? mPosition[0] += (rPosition[0] - mPosition[0])*slew : rPosition[0];
 			mPosition[1] = (morphing) ? mPosition[1] += (rPosition[1] - mPosition[1])*slew : rPosition[1];
@@ -241,40 +241,88 @@ public class FigureRainbowBezierTriple extends MaxObject {
 				float cindex =  b * 1.0f / (float) _bands;
 
 				Atom[] bandColor = rColor(cindex);
+				
+				// calculate offsetPoints before drawing. 
+				
+				float[][][] bezierOffset = new float[bSlices+1][2][3];	// hold offset points on both sides of curve
+				for(int _t=0; _t<bSlices; _t++) {
+					float t = _t*_add;
+
+					float[] _p = P(t, _bp[r]);			// returns array with xyz of main point
+					float[] _p2 = P(t+_add, _bp[r]);	// get next point to be able to calculate offset
+					float[] _offOutside = offsetPoint(_p,_p2,index*_w*_d + pScale[0]*_sr);	// calculates offset vector
+					float[] _offInside = offsetPoint(_p,_p2,index*_w*_d - pScale[0]*_sr);	// calculates offset vector
+					bezierOffset[_t][0][0] = _x + _p[0]*_sx + _offOutside[0]*_sx;
+					bezierOffset[_t][1][0] = _x + _p[0]*_sx + _offInside[0]*_sx;
+					bezierOffset[_t][0][1] = _x + _p[1]*_sy + _offOutside[1]*_sy;
+					bezierOffset[_t][1][1] = _x + _p[1]*_sy + _offInside[1]*_sy;
+					bezierOffset[_t][0][2] = _x + _p[2]*_sz + _offOutside[2]*_sz;
+					bezierOffset[_t][1][2] = _x + _p[2]*_sz + _offInside[2]*_sz;
+				}
+				
+				float t = 1.f;
+
+				float[] _p = P(t, _bp[r]);			// returns array with xyz of main point
+				float[] _p2 = P(t+_add, _bp[r]);	// get next point to be able to calculate offset
+				float[] _offOutside = offsetPoint(_p,_p2,index*_w*_d + pScale[0]*_sr);	// calculates offset vector
+				float[] _offInside = offsetPoint(_p,_p2,index*_w*_d - pScale[0]*_sr);	// calculates offset vector
+				bezierOffset[bSlices][0][0] = _x + _p[0]*_sx + _offOutside[0]*_sx;
+				bezierOffset[bSlices][1][0] = _x + _p[0]*_sx + _offInside[0]*_sx;
+				bezierOffset[bSlices][0][1] = _x + _p[1]*_sy + _offOutside[1]*_sy;
+				bezierOffset[bSlices][1][1] = _x + _p[1]*_sy + _offInside[1]*_sy;
+				bezierOffset[bSlices][0][2] = _x + _p[2]*_sz + _offOutside[2]*_sz;
+				bezierOffset[bSlices][1][2] = _x + _p[2]*_sz + _offInside[2]*_sz;
+				
 
 				// --- - - - - - - - - --- - -start BEZIER - - - -- - - -- - -- - -- -- -- - ---- 
 
 
 				sketch.call("glcolor", bandColor);
-				sketch.call("gllinewidth", pScale[0]*_sr);
+//				sketch.call("gllinewidth", pScale[0]*_sr);
 
-				sketch.call("glbegin", "line_strip");
+				sketch.call("glbegin", "tri_strip");
 
-				for(float t=0.0f; t<1.0f; t+=_add) {
-
-					float[] _p = P(t, _bp[r]);			// returns array with xyz of main point
-					float[] _p2 = P(t+_add, _bp[r]);	// get next point to be able to calculate offset
-					float[] _off = offsetPoint(_p,_p2,index*_w*_d);	// calculates offset vector
-
-					// combine point with offset vector, depending on which rainbow bow we are drawing right now
-					float newx = _x + _p[0]*_sx + _off[0]*_sx;
-					float newy = _y + _p[1]*_sy + _off[1]*_sy;
-					float newz = _z + _p[2]*_sz + _off[2]*_sz;
-
-					sketch.call("glvertex", new Atom[]{Atom.newAtom(newx),Atom.newAtom(newy),Atom.newAtom(newz)});
+				for(int i=0; i<=bSlices; i++) {
+					sketch.call("glvertex", new Atom[]{	Atom.newAtom(bezierOffset[i][0][0]),
+							Atom.newAtom(bezierOffset[i][0][1]),
+							Atom.newAtom(bezierOffset[i][0][2])});
+					sketch.call("glvertex", new Atom[]{	Atom.newAtom(bezierOffset[i][1][0]),
+							Atom.newAtom(bezierOffset[i][1][1]),
+							Atom.newAtom(bezierOffset[i][1][2])});
 				}
+				
+//				for(int i=bSlices; i>=0; i--) {
+//					sketch.call("glvertex", new Atom[]{	Atom.newAtom(bezierOffset[i][1][0]),
+//							Atom.newAtom(bezierOffset[i][1][1]),
+//							Atom.newAtom(bezierOffset[i][1][2])});
+//				}
+				
+//				for(int _t=0; _t<bSlices; _t++) {
+//					float t = _t*_add;
+//
+//					float[] _p = P(t, _bp[r]);			// returns array with xyz of main point
+//					float[] _p2 = P(t+_add, _bp[r]);	// get next point to be able to calculate offset
+//					float[] _off = offsetPoint(_p,_p2,index*_w*_d);	// calculates offset vector
+//
+//					// combine point with offset vector, depending on which rainbow bow we are drawing right now
+//					float newx = _x + _p[0]*_sx + _off[0]*_sx;
+//					float newy = _y + _p[1]*_sy + _off[1]*_sy;
+//					float newz = _z + _p[2]*_sz + _off[2]*_sz;
+//
+//					sketch.call("glvertex", new Atom[]{Atom.newAtom(newx),Atom.newAtom(newy),Atom.newAtom(newz)});
+//				}
 
-				// draw last point in curve, with fixed t=1.0 value, to make sure it is precise
-				float t=1.0f;
-
-				float[] _p = P(t, _bp[r]);	// returns array with xyz of point
-				float[] _p2 = P(t-_add, _bp[r]);
-				float[] _off = offsetPoint(_p,_p2,index*_w*_d);
-				// inverse offset on last point of curve, because p2 is the previous instead of the next point in the curve
-				float newx = _x + _p[0]*_sx - _off[0]*_sx;	
-				float newy = _y + _p[1]*_sy - _off[1]*_sy;
-				float newz = _z + _p[2]*_sz - _off[2]*_sz;
-				sketch.call("glvertex", new Atom[]{Atom.newAtom(newx),Atom.newAtom(newy),Atom.newAtom(newz)});
+//				// draw last point in curve, with fixed t=1.0 value, to make sure it is precise
+//				float t=1.0f;
+//
+//				float[] _p = P(t, _bp[r]);	// returns array with xyz of point
+//				float[] _p2 = P(t-_add, _bp[r]);
+//				float[] _off = offsetPoint(_p,_p2,index*_w*_d);
+//				// inverse offset on last point of curve, because p2 is the previous instead of the next point in the curve
+//				float newx = _x + _p[0]*_sx - _off[0]*_sx;	
+//				float newy = _y + _p[1]*_sy - _off[1]*_sy;
+//				float newz = _z + _p[2]*_sz - _off[2]*_sz;
+//				sketch.call("glvertex", new Atom[]{Atom.newAtom(newx),Atom.newAtom(newy),Atom.newAtom(newz)});
 
 				sketch.call("glend");
 
@@ -452,7 +500,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		bp[1][0][1] = y2;
 		bp[1][0][2] = z2;
 		bp[2][0][0] = x3;
-		bp[2][0][1] = y2;
+		bp[2][0][1] = y3;
 		bp[2][0][2] = z3;
 		setBezierPoints();
 	}
@@ -503,7 +551,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	/* total width of all rainbow bands */
 	public void width(float v) {
-		rWidth = (v>0.1f) ? v : 0.1f;
+		rWidth = v;
 	}
 	
 	public void height(float v) {
