@@ -21,21 +21,21 @@ public class FigureAuroraMulti extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 640; // TODO: include resize function
+	private int texture_width = 640; 	// TODO: include resize function
 	private int texture_height = 480;
 
 	// Bezier curve, aurora backbone
 	private float[] aPos = { 0, 0, 0 };
-	private float aBeta = 0.f; // birdview angle between outer bezier points
+	private float aBeta = 0.f; 			// birdview angle between outer bezier points
 	private float[] aSize = { 1, 1, 1 };
-	private int aNumMax = 3; // maximum number of aurora curtains
-	private int aNum = 1; // number of active curtains
-	private int abPointCount = 4; // main bezier point count, leave count
-									// flexible just in case
-	private float abPoint[][][]; // main bezier points
-	private float abHeight[]; // z of inner bezier points defines height of
-								// curve
-	private float abAngle[]; // angle of curve, leaning right or left ?
+	private int aNumMax = 3; 			// maximum number of aurora curtains
+	private int aNum = 1; 				// number of active curtains
+	private int abPointCount = 4; 		// main bezier point count, leave count
+										// flexible just in case
+	private float abPoint[][][]; 		// main bezier points
+	private float abHeight[];		 	// z of inner bezier points defines height of
+										// curve
+	private float abAngle[]; 			// angle of curve, leaning right or left ?
 
 	// aurora rays
 	private int rayCount[];
@@ -80,7 +80,6 @@ public class FigureAuroraMulti extends MaxObject {
 
 	/*
 	 * === === === === === === === main functions === === === === === === ===
-	 * ===
 	 */
 
 	/* instantiating mxj without argument */
@@ -285,12 +284,8 @@ public class FigureAuroraMulti extends MaxObject {
 
 	/*
 	 * === === === === === === === === ====== === === === === === === === ===
-	 * ===
-	 */
-	/* === === === === === === = aurora functions = === === === === === === === */
-	/*
+	 * === === === === === === aurora functions = === === === === === === ===
 	 * === === === === === === === === ====== === === === === === === === ===
-	 * ===
 	 */
 
 	/* set main bezier curve to standard symmetric position */
@@ -368,12 +363,8 @@ public class FigureAuroraMulti extends MaxObject {
 
 	/*
 	 * === === === === === === === === ====== === === === === === === === ===
-	 * ===
-	 */
-	/* === === === === === === bezier functions === === === === === === === */
-	/*
+	 * === === === === === ===  bezier functions  === === === === === === === 
 	 * === === === === === === === === ====== === === === === === === === ===
-	 * ===
 	 */
 
 	/* Bezier : Computes factorial */
@@ -518,15 +509,8 @@ public class FigureAuroraMulti extends MaxObject {
 
 	/*
 	 * === === === === === === === === ====== === === === === === === === ===
-	 * ===
-	 */
-	/*
 	 * === === === === === == helpful little functions == === === === === ===
-	 * ===
-	 */
-	/*
 	 * === === === === === === === === ====== === === === === === === === ===
-	 * ===
 	 */
 
 	private float restrict(float v) {
@@ -560,15 +544,8 @@ public class FigureAuroraMulti extends MaxObject {
 
 	/*
 	 * === === === === === === === === ====== === === === === === === === ===
-	 * ===
-	 */
-	/*
 	 * === === === === === === === set parameters === === === === === === ===
-	 * ===
-	 */
-	/*
 	 * === === === === === === === === ====== === === === === === === === ===
-	 * ===
 	 */
 
 	/* === === === === === === === jit.gl.sketch === === === === === === === === */
