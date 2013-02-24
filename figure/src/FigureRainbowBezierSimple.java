@@ -6,6 +6,7 @@
  * http://html5tutorial.com/how-to-draw-n-grade-bezier-curve-with-canvas-api/
  * 
  * simple version: no animation, but morphing
+ * TODO update math and drawing similar to FigureRainbowBezierTriple
  * 
  */
 

@@ -86,7 +86,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		
 		// assist message for inlets and outlets (for mouse hover)
 		setInletAssist(new String[] {"bang to compute and draw", "input settings"});
-		setOutletAssist(new String[] {"outputs jit.gl.texture object","connect to thispatcher for updating gui"});
+		setOutletAssist(new String[] {"outputs jit.gl.texture object","connect to thispatcher for gui updating"});
 		
 		
 		// instantiate jitter objects
@@ -559,6 +559,10 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		generateRainbow();
 	}
 	
+	
+	
+	/* === === === === === === === GUI in max patch === === === === === === === === */
+	
 	public void outputVariables() {
 		outputAllVariables();
 		outputBezierVariables();
@@ -593,6 +597,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		
 		outlet(1,"script send gui_morphspeed set "+slew);
 		outlet(1,"script send gui_morph set "+ (morphing ? 1 : 0));
+		outlet(1,"script send gui_mode set "+rMode);
 		
 	}
 	

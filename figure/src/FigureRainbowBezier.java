@@ -6,6 +6,7 @@
  * http://html5tutorial.com/how-to-draw-n-grade-bezier-curve-with-canvas-api/
  * 
  * animation with addSegment
+ * TODO update math and drawing similar to FigureRainbowBezierTriple
  * 
  */
 

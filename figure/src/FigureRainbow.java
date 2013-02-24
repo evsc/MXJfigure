@@ -5,6 +5,7 @@
  * with jitter jit.gl.sketch stroke function
  * 
  * simple version: no animation, but morphing
+ * TODO update math and drawing similar to FigureRainbowBezierTriple
  * 
  */
 
