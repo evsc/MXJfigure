@@ -26,51 +26,49 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 640;	// TODO: include resize function
+	private int texture_width = 640;		// TODO: include resize function
 	private int texture_height = 480;
 		
 	// Bezier curve, rainbow backbone
-	private int rNo = 3;			// number of rainbows
+	private int rNo = 3;					// number of rainbows
 	private int pointCount = 4;
-	private float bp[][][];			// bezier points
-	private float rHeight[];		// height of rainbow arch
-	private float pScale[];
-	private boolean varyScale = false;
-	private float scaleRange = 0.1f;
-	private int bSlices = 20;		// bezier slices
+	private float bp[][][];					// bezier points
+	private float rHeight[];				// height of rainbow arch	
+	private int bSlices = 20;				// bezier slices
 	
 
 	// Bezier display
-	private boolean colorMode = true;		// how to calculate rainbow colors
+	private int colorMode = 1;		// how to calculate rainbow colors
 
 	
 	// rainbow
-	private int rMode = 1;					// rainbow building mode
+	private int rMode = 0;					// rainbow building mode
 	private int rBands = 7;
-	private float rWidth = 0.2f;
+	private float rWidth = 0.2f;			// width of all bands together
+	private float strokeWidth = 0.01f;			// width of one band
 	private float[] rPosition = {0,0,0};	// center position of rainbow (arch center on ground)
 	private float[] rSize = {1,1,1};		// scale of rainbow
 	private float rDir = 1;					// direction. -1 inverts direction of bands
 
 	// position and scale arrays for morphing
 	private boolean morphing = false;
-	private float slew = 0.1f;
+	private float slew = 0.15f;
 	private float mp[][][];				// morph points
-	private float mScale[];
+	private float mStrokeWidth = 0.1f;
 	private float mPosition[] = {0,0,0};
 	private float mSize[] = {1,1,1};
 	private float mWidth = 0.2f;
 	private float mBands = 7;
-	private float mScaleRange = 0.1f;
-	
+
 	
 	// display parameters
-	private boolean lineSmooth = false;
-	private int sketchDepthEnable = 0;
+	private int lineSmooth = 0;
+	private int sketchDepthEnable = 1;
 	private int sketchAntialias = 0;
 	private int sketchFsaa = 0;
 	private int sketchBlendEnable = 0;
-	
+	private int sketchBlendMode1 = 1;
+	private int sketchBlendMode2 = 1;
 	
 	
 	/* instantiating mxj without argument causes a problem */
@@ -83,12 +81,12 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	/* instantiate mxj with render context as argument */
 	public FigureRainbowBezierTriple(String c) {
 		context = c;			// 	render context
-		declareIO(2,1);			/* 	delare number of inlets and outlets, 
+		declareIO(2,2);			/* 	delare number of inlets and outlets, 
  									of DataTypes.ALL */
 		
 		// assist message for inlets and outlets (for mouse hover)
 		setInletAssist(new String[] {"bang to compute and draw", "input settings"});
-		setOutletAssist(new String[] {"outputs jit.gl.texture object"});
+		setOutletAssist(new String[] {"outputs jit.gl.texture object","connect to thispatcher for updating gui"});
 		
 		
 		// instantiate jitter objects
@@ -114,51 +112,52 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		// set arrays to max number of pointcount
 		int m = pointCount;
 		bp = new float[rNo][m][3];
-		pScale = new float[m];
 		mp = new float[rNo][m][3];
-		mScale = new float[m];
 		rHeight = new float[m];
 		
 		for(int i=0; i<rNo; i++) {
 			rHeight[i] = 1.f;
-			pScale[i] = 1.f;
 			for(int j=0; j<pointCount; j++) {
 				for(int k=0; k<3; k++) bp[i][j][k] = 0.f;
 			}
 		}
 		
-		pA(0,0,-3);
-		pB(-1,0,1,0,0,1,1,0,1);
+		generateRainbow();
+		outputAllVariables();
 	}
 	
 	
 	/* defines the points of the rainbow randomly */
 	public void generateRainbow() {
-		post("generateRainbow() mode:"+rMode);
 		
 		switch(rMode) {
-		case 0:	// random points
+		case 0: // start arrangement
+			pA(-2.f,0,-3,-2.1f,0,-3,-1.9f,0.f,-3);
+			pB(0.3f,-0.5f,0.4f,-0.2f,-0.3f,1.1f,0.5f,-0.2f,0.7f);
+			break;
+		case 1: // strict rainbow from 4 points, smaller and smaller
+			for(int r=0; r<rNo; r++) {
+				float m = 1.0f - r*0.35f;
+				bp[r][0][0] = bp[r][1][0] = -rSize[0]*m;
+				bp[r][2][0] = bp[r][3][0] = rSize[0]*m;
+				bp[r][0][1] = bp[r][3][1] = 0;
+				bp[r][1][1] = bp[r][2][1] = rHeight[r]*m;
+				bp[r][0][2] = bp[r][1][2] = bp[r][2][2] = bp[r][3][2] = 0;
+			}
+			break;
+		case 2:	// random points
 			for(int r=0; r<rNo; r++) {
 				for(int i=0; i<pointCount; i++) {
 					for(int x=0; x<3; x++) {
 						bp[r][i][x] = (float) Math.random()*2-1.f;
 
 					}
-					pScale[i] = (float) Math.random();
 				}
 			}
 			break;
-		case 1: // strict rainbow from 4 points
-			for(int r=0; r<rNo; r++) {
-				bp[r][0][0] = bp[r][1][0] = -rSize[0];
-				bp[r][2][0] = bp[r][3][0] = rSize[0];
-				bp[r][0][1] = bp[r][3][1] = 0;
-				bp[r][1][1] = bp[r][2][1] = rSize[1];
-				bp[r][0][2] = bp[r][1][2] = bp[r][2][2] = bp[r][3][2] = 0;
-			}
-			for(int i=0; i<pointCount; i++) pScale[i] = 1.0f;
-			break;
+
 		}
+		outputBezierVariables();
 	}
 	
 	private void setBezierPoints() {
@@ -191,7 +190,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		
 		sketch.call("reset");	// start drawing by resetting sketch object
 		
-		if (lineSmooth) sketch.call("glenable", "line_smooth");
+		if (lineSmooth>0) sketch.call("glenable", "line_smooth");
 		else sketch.call("gldisable", "line_smooth");
 
 		for(int r=0; r<rNo; r++) {
@@ -211,9 +210,10 @@ public class FigureRainbowBezierTriple extends MaxObject {
 			int _bands = (int) Math.floor(mBands);
 			mWidth = (morphing) ? mWidth += (rWidth - mWidth)*slew : rWidth;
 			float _w = mWidth;
-			mScaleRange = (morphing) ? mScaleRange += (scaleRange - mScaleRange)*slew : scaleRange;
-			float _sr = mScaleRange;
-			float _add = 1.f / (float) (bSlices+1);			// defines number of slices
+			mStrokeWidth = (morphing) ? mStrokeWidth += (strokeWidth - mStrokeWidth)*slew : strokeWidth;
+			float _scw = mStrokeWidth;
+			if(_scw > _w/ ((_bands-1)*2.f)) _scw = _w/ ((_bands-1)*2.f);
+			float _add = 1.f / (float) (bSlices);			// defines number of slices
 
 			mPosition[0] = (morphing) ? mPosition[0] += (rPosition[0] - mPosition[0])*slew : rPosition[0];
 			mPosition[1] = (morphing) ? mPosition[1] += (rPosition[1] - mPosition[1])*slew : rPosition[1];
@@ -230,55 +230,50 @@ public class FigureRainbowBezierTriple extends MaxObject {
 
 			float _d = rDir;	// direction the rainbow expands to
 
-			//		if(wireFrame) sketch.call("glpolygonmode", new Atom[]{Atom.newAtom("front_and_back"),Atom.newAtom("line")});
-			//		else sketch.call("glpolygonmode", new Atom[]{Atom.newAtom("front_and_back"),Atom.newAtom("fill")});
 
+			/* calculate all bezier points and their offset vectors beforehand
+			 * as they are used multiple times in the following loops */
+			float[][] bezierPoint = new float[bSlices+1][3];
+			float[][] offsetVector = new float[bSlices+1][3];
+			// calculate all points along the bezier curve
+			for(int _t=0; _t<=bSlices; _t++) {
+				float t = _t*_add;
+				bezierPoint[_t] = P(t, _bp[r]);	
+			}
+			// calculate vector perpendicular to the line connecting the previous and next bezier point
+			for(int _t=0; _t<=bSlices; _t++) {
+				if(_t==0) offsetVector[_t] = perpendicularVector(bezierPoint[_t],bezierPoint[_t+1]);
+				else if(_t==bSlices) offsetVector[_t] = perpendicularVector(bezierPoint[_t-1],bezierPoint[_t]);
+				else offsetVector[_t] = perpendicularVector(bezierPoint[_t-1],bezierPoint[_t+1]);
+			}
 
-
+			// calculate offsetPoints of bands before drawing.
 			for(int b=0; b<_bands; b++) {
 
 				float index = b * 1.0f / (float) (_bands-1); // 0... 1st outer band, 1... inner band
 				float cindex =  b * 1.0f / (float) _bands;
 
-				Atom[] bandColor = rColor(cindex);
 				
-				// calculate offsetPoints before drawing. 
 				
 				float[][][] bezierOffset = new float[bSlices+1][2][3];	// hold offset points on both sides of curve
-				for(int _t=0; _t<bSlices; _t++) {
-					float t = _t*_add;
-
-					float[] _p = P(t, _bp[r]);			// returns array with xyz of main point
-					float[] _p2 = P(t+_add, _bp[r]);	// get next point to be able to calculate offset
-					float[] _offOutside = offsetPoint(_p,_p2,index*_w*_d + pScale[0]*_sr);	// calculates offset vector
-					float[] _offInside = offsetPoint(_p,_p2,index*_w*_d - pScale[0]*_sr);	// calculates offset vector
-					bezierOffset[_t][0][0] = _x + _p[0]*_sx + _offOutside[0]*_sx;
-					bezierOffset[_t][1][0] = _x + _p[0]*_sx + _offInside[0]*_sx;
-					bezierOffset[_t][0][1] = _x + _p[1]*_sy + _offOutside[1]*_sy;
-					bezierOffset[_t][1][1] = _x + _p[1]*_sy + _offInside[1]*_sy;
-					bezierOffset[_t][0][2] = _x + _p[2]*_sz + _offOutside[2]*_sz;
-					bezierOffset[_t][1][2] = _x + _p[2]*_sz + _offInside[2]*_sz;
+				for(int _t=0; _t<=bSlices; _t++) {
+					float[] _offOutside = scaleVector(offsetVector[_t], index*_w*_d + _scw);
+					float[] _offInside = scaleVector(offsetVector[_t], index*_w*_d - _scw);
+					
+					bezierOffset[_t][0][0] = _x + bezierPoint[_t][0]*_sx + _offOutside[0]*_sx;
+					bezierOffset[_t][1][0] = _x + bezierPoint[_t][0]*_sx + _offInside[0]*_sx;
+					bezierOffset[_t][0][1] = _y + bezierPoint[_t][1]*_sy + _offOutside[1]*_sy;
+					bezierOffset[_t][1][1] = _y + bezierPoint[_t][1]*_sy + _offInside[1]*_sy;
+					bezierOffset[_t][0][2] = _z + bezierPoint[_t][2]*_sz + _offOutside[2]*_sz;
+					bezierOffset[_t][1][2] = _z + bezierPoint[_t][2]*_sz + _offInside[2]*_sz;
 				}
 				
-				float t = 1.f;
-
-				float[] _p = P(t, _bp[r]);			// returns array with xyz of main point
-				float[] _p2 = P(t+_add, _bp[r]);	// get next point to be able to calculate offset
-				float[] _offOutside = offsetPoint(_p,_p2,index*_w*_d + pScale[0]*_sr);	// calculates offset vector
-				float[] _offInside = offsetPoint(_p,_p2,index*_w*_d - pScale[0]*_sr);	// calculates offset vector
-				bezierOffset[bSlices][0][0] = _x + _p[0]*_sx + _offOutside[0]*_sx;
-				bezierOffset[bSlices][1][0] = _x + _p[0]*_sx + _offInside[0]*_sx;
-				bezierOffset[bSlices][0][1] = _x + _p[1]*_sy + _offOutside[1]*_sy;
-				bezierOffset[bSlices][1][1] = _x + _p[1]*_sy + _offInside[1]*_sy;
-				bezierOffset[bSlices][0][2] = _x + _p[2]*_sz + _offOutside[2]*_sz;
-				bezierOffset[bSlices][1][2] = _x + _p[2]*_sz + _offInside[2]*_sz;
 				
 
 				// --- - - - - - - - - --- - -start BEZIER - - - -- - - -- - -- - -- -- -- - ---- 
 
-
+				Atom[] bandColor = rColor(cindex);
 				sketch.call("glcolor", bandColor);
-//				sketch.call("gllinewidth", pScale[0]*_sr);
 
 				sketch.call("glbegin", "tri_strip");
 
@@ -291,39 +286,6 @@ public class FigureRainbowBezierTriple extends MaxObject {
 							Atom.newAtom(bezierOffset[i][1][2])});
 				}
 				
-//				for(int i=bSlices; i>=0; i--) {
-//					sketch.call("glvertex", new Atom[]{	Atom.newAtom(bezierOffset[i][1][0]),
-//							Atom.newAtom(bezierOffset[i][1][1]),
-//							Atom.newAtom(bezierOffset[i][1][2])});
-//				}
-				
-//				for(int _t=0; _t<bSlices; _t++) {
-//					float t = _t*_add;
-//
-//					float[] _p = P(t, _bp[r]);			// returns array with xyz of main point
-//					float[] _p2 = P(t+_add, _bp[r]);	// get next point to be able to calculate offset
-//					float[] _off = offsetPoint(_p,_p2,index*_w*_d);	// calculates offset vector
-//
-//					// combine point with offset vector, depending on which rainbow bow we are drawing right now
-//					float newx = _x + _p[0]*_sx + _off[0]*_sx;
-//					float newy = _y + _p[1]*_sy + _off[1]*_sy;
-//					float newz = _z + _p[2]*_sz + _off[2]*_sz;
-//
-//					sketch.call("glvertex", new Atom[]{Atom.newAtom(newx),Atom.newAtom(newy),Atom.newAtom(newz)});
-//				}
-
-//				// draw last point in curve, with fixed t=1.0 value, to make sure it is precise
-//				float t=1.0f;
-//
-//				float[] _p = P(t, _bp[r]);	// returns array with xyz of point
-//				float[] _p2 = P(t-_add, _bp[r]);
-//				float[] _off = offsetPoint(_p,_p2,index*_w*_d);
-//				// inverse offset on last point of curve, because p2 is the previous instead of the next point in the curve
-//				float newx = _x + _p[0]*_sx - _off[0]*_sx;	
-//				float newy = _y + _p[1]*_sy - _off[1]*_sy;
-//				float newz = _z + _p[2]*_sz - _off[2]*_sz;
-//				sketch.call("glvertex", new Atom[]{Atom.newAtom(newx),Atom.newAtom(newy),Atom.newAtom(newz)});
-
 				sketch.call("glend");
 
 				// --- - - - - - - - - --- - - --end BEZIER -- - - -- - -- - -- -- -- - ---- -
@@ -396,16 +358,26 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	}
 
 	
-	private float[] offsetPoint(float[] p1, float[] p2, float diff) {
-		float[] of = {0,0,0};
-		float x = p2[0] - p1[0];
-		float y = p2[1] - p1[1];
-		float z = p2[2] - p1[2];
+	private float[] perpendicularVector(float[] point1, float[] point2) {
+		
+		float[] ofv = {0,0,0};
+		
+		float x = point2[0] - point1[0];
+		float y = point2[1] - point1[1];
+		float z = point2[2] - point1[2];
+		
 		float c = (float) Math.sqrt(x*x + y*y + z*z);
-		of[0] = -y/c * diff;
-		of[1] = x/c * diff;
-		of[2] = z/c * diff;
-		return of;
+		ofv[0] = -y/c;
+		ofv[1] = x/c;
+		ofv[2] = z/c;
+		
+		return ofv;
+	}
+	
+	
+	private float[] scaleVector(float[] v, float s) {
+		float[] newVector = { v[0]*s, v[1]*s, v[2]*s };
+		return newVector;
 	}
 	
 	
@@ -418,11 +390,14 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	}
 	
 	private float rainbowSpectrum(float v) {
-		if(!colorMode) return v;
+		if(colorMode==0) return v;
 		float k = v*2.f;
 		float m = (k>1) ? 1 + ((float) Math.sin((k-1.f)*1.570796)) : 1 - (float) Math.cos(k*1.570796);
 		return m/2.0f;
 	}
+	
+	
+
 	
 	
 	/*
@@ -445,6 +420,8 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	}
 
 	public void blendMode(int b1, int b2) {
+		sketchBlendMode1 = b1;
+		sketchBlendMode2 = b2;
 		sketch.setAttr("blend_mode",
 				new Atom[] { Atom.newAtom(b1), Atom.newAtom(b2) });
 	}
@@ -466,7 +443,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	}
 
 	public void linesmooth(int v) {
-		lineSmooth = (v == 1) ? true : false;
+		lineSmooth = (v == 1) ? 1 : 0;
 	}
 	
 	
@@ -487,11 +464,12 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		rSize[2] = z;
 	}
 	
-	
+	/* set the start points of the rainbow arches */
 	public void pA(float x, float y, float z) {
 		pA(x,y,z,x,y,z,x,y,z);
 	}
 	
+	/* set the start points of the rainbow arches */
 	public void pA(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3) {
 		bp[0][0][0] = x1;
 		bp[0][0][1] = y1;
@@ -505,10 +483,12 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		setBezierPoints();
 	}
 
+	/* set the end points of the rainbow arches */
 	public void pB(float x, float y, float z) {
 		pB(x,y,z,x,y,z,x,y,z);
 	}
 	
+	/* set the end points of the rainbow arches */
 	public void pB(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3) {
 		bp[0][pointCount - 1][0] = x1;
 		bp[0][pointCount - 1][1] = y1;
@@ -530,17 +510,13 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	/* changes the width of the stroke */
 	public void strokewidth(float v) {
-		scaleRange = (v>0) ? v : 0.01f;
+		strokeWidth = (v>0) ? v : 0.001f;
 	}
 	
-	/* toggle, vary stroke width with scaleRange value */
-	public void varyscale(int v) {
-		varyScale = (v==1) ? true : false;
-	}
 	
 	/* toggle HSB versus fake rainbow spektrum */
 	public void colormode(int v) {
-		colorMode = (v==1) ? true : false;
+		colorMode = (v==1) ? 1 : 0;
 	}
 
 	
@@ -554,17 +530,18 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		rWidth = v;
 	}
 	
+	/* set the height of the rainbow arches */
 	public void height(float v) {
 		height(v,v,v);
 	}
 	
+	/* set the height of the rainbow arches */
 	public void height(float v1, float v2, float v3) {
 		rHeight[0] = v1;
 		rHeight[1] = v2;
 		rHeight[2] = v3;
 		setBezierPoints();
 	}
-
 	
 	/* toggle morphing */
 	public void morph(int v) {
@@ -580,6 +557,76 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	public void mode(int v) {
 		rMode = (v>0) ? v : 0;
 		generateRainbow();
+	}
+	
+	public void outputVariables() {
+		outputAllVariables();
+		outputBezierVariables();
+	}
+	
+	private void outputAllVariables() {
+
+		// display parameters
+		outlet(1,"script send gui_depthenable set "+sketchDepthEnable);
+		outlet(1,"script send gui_antialias set "+sketchAntialias);
+		outlet(1,"script send gui_fsaa set "+sketchFsaa);
+		outlet(1,"script send gui_linesmooth set "+lineSmooth);
+		outlet(1,"script send gui_blendenable set "+sketchBlendEnable);
+		outlet(1,"script send gui_blendmode1 set "+sketchBlendMode1);
+		outlet(1,"script send gui_blendmode2 set "+sketchBlendMode2);
+		
+		// rainbow
+		outlet(1,"script send gui_colormode set "+colorMode);
+		outlet(1,"script send gui_sizex set "+rSize[0]);
+		outlet(1,"script send gui_sizey set "+rSize[1]);
+		outlet(1,"script send gui_sizez set "+rSize[2]);
+		outlet(1,"script send gui_positionx set "+rPosition[0]);
+		outlet(1,"script send gui_positiony set "+rPosition[1]);
+		outlet(1,"script send gui_positionz set "+rPosition[2]);
+		
+		
+		outlet(1,"script send gui_slices set "+bSlices);
+		outlet(1,"script send gui_bands set "+rBands);
+		outlet(1,"script send gui_width set "+rWidth);
+		outlet(1,"script send gui_strokewidth set "+strokeWidth);
+		outlet(1,"script send gui_height set "+rHeight[0]);
+		
+		outlet(1,"script send gui_morphspeed set "+slew);
+		outlet(1,"script send gui_morph set "+ (morphing ? 1 : 0));
+		
+	}
+	
+	private void outputBezierVariables() {
+		outlet(1,"script send gui_pa1x set "+bp[0][0][0]);
+		outlet(1,"script send gui_pa1y set "+bp[0][0][1]);
+		outlet(1,"script send gui_pa1z set "+bp[0][0][2]);
+		outlet(1,"script send gui_pa2x set "+bp[1][0][0]);
+		outlet(1,"script send gui_pa2y set "+bp[1][0][1]);
+		outlet(1,"script send gui_pa2z set "+bp[1][0][2]);
+		outlet(1,"script send gui_pa3x set "+bp[2][0][0]);
+		outlet(1,"script send gui_pa3y set "+bp[2][0][1]);
+		outlet(1,"script send gui_pa3z set "+bp[2][0][2]);
+		
+		outlet(1,"script send gui_pa set pA "
+				+bp[0][0][0]+" "+bp[0][0][1]+" "+bp[0][0][2]+" "
+				+bp[1][0][0]+" "+bp[1][0][1]+" "+bp[1][0][2]+" "
+				+bp[2][0][0]+" "+bp[2][0][1]+" "+bp[2][0][2]+" ");
+		
+		
+		outlet(1,"script send gui_pb1x set "+bp[0][pointCount - 1][0]);
+		outlet(1,"script send gui_pb1y set "+bp[0][pointCount - 1][1]);
+		outlet(1,"script send gui_pb1z set "+bp[0][pointCount - 1][2]);
+		outlet(1,"script send gui_pb2x set "+bp[1][pointCount - 1][0]);
+		outlet(1,"script send gui_pb2y set "+bp[1][pointCount - 1][1]);
+		outlet(1,"script send gui_pb2z set "+bp[1][pointCount - 1][2]);
+		outlet(1,"script send gui_pb3x set "+bp[2][pointCount - 1][0]);
+		outlet(1,"script send gui_pb3y set "+bp[2][pointCount - 1][1]);
+		outlet(1,"script send gui_pb3z set "+bp[2][pointCount - 1][2]);
+		
+		outlet(1,"script send gui_pb set pB "
+				+bp[0][pointCount - 1][0]+" "+bp[0][pointCount - 1][1]+" "+bp[0][pointCount - 1][2]+" "
+				+bp[1][pointCount - 1][0]+" "+bp[1][pointCount - 1][1]+" "+bp[1][pointCount - 1][2]+" "
+				+bp[2][pointCount - 1][0]+" "+bp[2][pointCount - 1][1]+" "+bp[2][pointCount - 1][2]+" ");
 	}
 	
 		
