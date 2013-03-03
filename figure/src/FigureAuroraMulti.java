@@ -16,7 +16,7 @@ public class FigureAuroraMulti extends MaxObject {
 
 	// render context for jitter opengl objects
 	private String context = "foo";
-	private boolean debug = true;
+	private boolean debug = false;
 
 	// jitter objects
 	JitterObject sketch;
@@ -27,7 +27,7 @@ public class FigureAuroraMulti extends MaxObject {
 	// Bezier curve, aurora backbone
 	private int aMode = 0;					// for default aurora settings
 	private int aNumMax = 3; 				// maximum number of aurora curtains
-	private int aNum = 3; 					// number of active curtains
+	private int aNum = 1; 					// number of active curtains
 	private int abPointCount = 4; 			// main bezier point count, leave count flexible
 	private float abPoint[][][]; 			// main bezier points, for all curtains
 	private float abHeight[];		 		// z of inner bezier points defines height of curve
@@ -305,9 +305,11 @@ public class FigureAuroraMulti extends MaxObject {
 	/* set main bezier curve to standard symmetric position */
 	void setMainBezier() {
 		
+		if(debug) post("setMainBezier() "+aMode);
+		
 		switch(aMode) {
 		case 0: 											// towards screen
-			for (int c = 0; c < aNum; c++) {
+			for (int c = 0; c < aNumMax; c++) {
 				abPoint[c][0][0] = 0.3f; // x 1st point
 				abPoint[c][0][1] = 0.f; // y
 				abPoint[c][0][2] = 2.f; // z
@@ -318,7 +320,7 @@ public class FigureAuroraMulti extends MaxObject {
 			}
 			break;
 		case 1: 											// arch on screen
-			for (int c = 0; c < aNum; c++) {
+			for (int c = 0; c < aNumMax; c++) {
 				abPoint[c][0][0] = -1.f; // x 1st point
 				abPoint[c][0][1] = 0.f; // y
 				abPoint[c][0][2] = 0.f; // z
@@ -336,6 +338,8 @@ public class FigureAuroraMulti extends MaxObject {
 
 	/* */
 	void setBezierPoints() {
+		
+		if(debug) post("setBezierPoints()");
 
 		for (int c = 0; c < aNumMax; c++) {
 
@@ -444,6 +448,8 @@ public class FigureAuroraMulti extends MaxObject {
 	}
 
 	private void setNoise() {
+		
+		if(debug) post("setNoise");
 		
 		// define maximum length of noies array, based on all curtains noise frequency
 		int maxNoise = Math.max( noiseCount[0]+noiseF[0], Math.max( noiseCount[1]+noiseF[1], 
@@ -640,7 +646,7 @@ public class FigureAuroraMulti extends MaxObject {
 	}
 
 	public void pA(float x, float y, float z) {
-		for (int c = 0; c < aNum; c++) {
+		for (int c = 0; c < aNumMax; c++) {
 			abPoint[c][0][0] = x;
 			abPoint[c][0][1] = y;
 			abPoint[c][0][2] = z;
@@ -649,7 +655,7 @@ public class FigureAuroraMulti extends MaxObject {
 	}
 
 	public void pB(float x, float y, float z) {
-		for (int c = 0; c < aNum; c++) {
+		for (int c = 0; c < aNumMax; c++) {
 			abPoint[c][abPointCount - 1][0] = x;
 			abPoint[c][abPointCount - 1][1] = y;
 			abPoint[c][abPointCount - 1][2] = z;
@@ -849,6 +855,7 @@ public class FigureAuroraMulti extends MaxObject {
 		outlet(1,"script send gui_vanishingz set "+aVanishP[2]);
 		
 		outlet(1,"script send gui_number set "+aNum);
+		outlet(1,"script send gui_number max "+aNumMax);
 		
 		outlet(1, "script send gui_raycount set raycount " + rayCount[0]
 				+ " " + rayCount[1] + " " + rayCount[2]);
@@ -893,7 +900,7 @@ public class FigureAuroraMulti extends MaxObject {
 
 		outlet(1, "script send gui_noisestep set noisestep " + noiseStep[0]
 				+ " " + noiseStep[1] + " " + noiseStep[2] + " " + noiseStep[3]);
-		outlet(1,"script send gui_noisestep0 set "+noiseStep[0]);
+//		outlet(1,"script send gui_noisestep0 set "+noiseStep[0]);
 		outlet(1,"script send gui_noisestep1 set "+noiseStep[0]);
 		outlet(1,"script send gui_noisestep2 set "+noiseStep[1]);
 		outlet(1,"script send gui_noisestep3 set "+noiseStep[2]);
@@ -901,7 +908,7 @@ public class FigureAuroraMulti extends MaxObject {
 		
 		outlet(1, "script send gui_noisef set noisef " + noiseF[0]
 				+ " " + noiseF[1] + " " + noiseF[2] + " " + noiseF[3]);
-		outlet(1,"script send gui_noisef0 set "+noiseF[0]);
+//		outlet(1,"script send gui_noisef0 set "+noiseF[0]);
 		outlet(1,"script send gui_noisef1 set "+noiseF[0]);
 		outlet(1,"script send gui_noisef2 set "+noiseF[1]);
 		outlet(1,"script send gui_noisef3 set "+noiseF[2]);

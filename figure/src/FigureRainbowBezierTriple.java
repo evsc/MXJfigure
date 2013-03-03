@@ -30,7 +30,8 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	private int texture_height = 480;
 		
 	// Bezier curve, rainbow backbone
-	private int rNo = 3;					// number of rainbows
+	private int rNum = 1;					// active number of rainbows
+	private int rNumMax = 3;				// maximum number of rainbows
 	private int pointCount = 4;
 	private float bp[][][];					// bezier points
 	private float rHeight[];				// height of rainbow arch	
@@ -42,23 +43,23 @@ public class FigureRainbowBezierTriple extends MaxObject {
 
 	
 	// rainbow
-	private int rMode = 0;					// rainbow building mode
-	private int rBands = 7;
-	private float rWidth = 0.2f;			// width of all bands together
-	private float strokeWidth = 0.01f;			// width of one band
+	private int[] rBands = {7,7,7};
+	private float[] rWidth = {0.2f,0.2f,0.2f};				// width of all bands together
+	private float[] strokeWidth = {0.01f,0.01f,0.01f};		// width of one band
 	private float[] rPosition = {0,0,0};	// center position of rainbow (arch center on ground)
 	private float[] rSize = {1,1,1};		// scale of rainbow
 	private float rDir = 1;					// direction. -1 inverts direction of bands
 
 	// position and scale arrays for morphing
+	private int randomMode = 0;				// random building mode
 	private boolean morphing = false;
 	private float slew = 0.15f;
-	private float mp[][][];				// morph points
-	private float mStrokeWidth = 0.1f;
+	private float mp[][][];					// morph points
+	private float[] mStrokeWidth = {0.01f,0.01f,0.01f};
 	private float mPosition[] = {0,0,0};
 	private float mSize[] = {1,1,1};
-	private float mWidth = 0.2f;
-	private float mBands = 7;
+	private float mWidth[] = { 0.2f,0.2f,0.2f};
+	private float[] mBands = {7,7,7};
 
 	
 	// display parameters
@@ -111,11 +112,11 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		
 		// set arrays to max number of pointcount
 		int m = pointCount;
-		bp = new float[rNo][m][3];
-		mp = new float[rNo][m][3];
+		bp = new float[rNumMax][m][3];
+		mp = new float[rNumMax][m][3];
 		rHeight = new float[m];
 		
-		for(int i=0; i<rNo; i++) {
+		for(int i=0; i<rNumMax; i++) {
 			rHeight[i] = 1.f;
 			for(int j=0; j<pointCount; j++) {
 				for(int k=0; k<3; k++) bp[i][j][k] = 0.f;
@@ -129,24 +130,8 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	/* defines the points of the rainbow randomly */
 	public void generateRainbow() {
-		
-		switch(rMode) {
-		case 0: // start arrangement
-			pA(-2.f,0,-3,-2.1f,0,-3,-1.9f,0.f,-3);
-			pB(0.3f,-0.5f,0.4f,-0.2f,-0.3f,1.1f,0.5f,-0.2f,0.7f);
-			break;
-		case 1: // strict rainbow from 4 points, smaller and smaller
-			for(int r=0; r<rNo; r++) {
-				float m = 1.0f - r*0.35f;
-				bp[r][0][0] = bp[r][1][0] = -rSize[0]*m;
-				bp[r][2][0] = bp[r][3][0] = rSize[0]*m;
-				bp[r][0][1] = bp[r][3][1] = 0;
-				bp[r][1][1] = bp[r][2][1] = rHeight[r]*m;
-				bp[r][0][2] = bp[r][1][2] = bp[r][2][2] = bp[r][3][2] = 0;
-			}
-			break;
-		case 2:	// random points
-			for(int r=0; r<rNo; r++) {
+		if(randomMode==1) {
+			for(int r=0; r<rNumMax; r++) {
 				for(int i=0; i<pointCount; i++) {
 					for(int x=0; x<3; x++) {
 						bp[r][i][x] = (float) Math.random()*2-1.f;
@@ -154,14 +139,15 @@ public class FigureRainbowBezierTriple extends MaxObject {
 					}
 				}
 			}
-			break;
-
+		} else {
+			pA(-2.f,0,-3,-2.1f,0,-3,-1.9f,0.f,-3);
+			pB(0.3f,-0.5f,0.4f,-0.2f,-0.3f,1.1f,0.5f,-0.2f,0.7f);
 		}
 		outputBezierVariables();
 	}
 	
 	private void setBezierPoints() {
-		for(int r=0; r<rNo; r++) {
+		for(int r=0; r<rNumMax; r++) {
 			bp[r][1][0] = bp[r][0][0];
 			bp[r][1][1] = bp[r][0][1] + rHeight[r];
 			bp[r][1][2] = bp[r][0][2];
@@ -186,14 +172,14 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	public void draw() {
 
 		// create local variables, to avoid conflict when life-updating variables while rendering
-		float _bp[][][] = new float[rNo][pointCount][3];
+		float _bp[][][] = new float[rNumMax][pointCount][3];
 		
 		sketch.call("reset");	// start drawing by resetting sketch object
 		
 		if (lineSmooth>0) sketch.call("glenable", "line_smooth");
 		else sketch.call("gldisable", "line_smooth");
 
-		for(int r=0; r<rNo; r++) {
+		for(int r=0; r<rNum; r++) {
 
 			// if morphing, use mx[] as morphed values while px[] represents goal of morphing
 			for(int i=0; i<pointCount; i++) {
@@ -206,12 +192,12 @@ public class FigureRainbowBezierTriple extends MaxObject {
 			}
 
 			// more local variables
-			mBands = (morphing) ? mBands += (rBands - mBands)*slew : rBands;
-			int _bands = (int) Math.floor(mBands);
-			mWidth = (morphing) ? mWidth += (rWidth - mWidth)*slew : rWidth;
-			float _w = mWidth;
-			mStrokeWidth = (morphing) ? mStrokeWidth += (strokeWidth - mStrokeWidth)*slew : strokeWidth;
-			float _scw = mStrokeWidth;
+			mBands[r] = (morphing) ? mBands[r] += (rBands[r] - mBands[r])*slew : rBands[r];
+			int _bands = (int) Math.floor(mBands[r]);
+			mWidth[r] = (morphing) ? mWidth[r] += (rWidth[r] - mWidth[r])*slew : rWidth[r];
+			float _w = mWidth[r];
+			mStrokeWidth[r] = (morphing) ? mStrokeWidth[r] += (strokeWidth[r] - mStrokeWidth[r])*slew : strokeWidth[r];
+			float _scw = mStrokeWidth[r];
 			if(_scw > _w/ ((_bands-1)*2.f)) _scw = _w/ ((_bands-1)*2.f);
 			float _add = 1.f / (float) (bSlices);			// defines number of slices
 
@@ -450,6 +436,10 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	/* === === === === === === === rainbow === === === === === === === === */
 	
 	
+	public void num(int v) {
+		rNum = (v<rNumMax) ? (v>0) ? v : 1 : rNumMax;
+	}
+	
 	/* set center position of rainbow */
 	public void position(float x, float y, float z) {
 		rPosition[0] = x;
@@ -510,7 +500,13 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	/* changes the width of the stroke */
 	public void strokewidth(float v) {
-		strokeWidth = (v>0) ? v : 0.001f;
+		strokewidth(v,v,v);
+	}
+	
+	public void strokewidth(float v1, float v2, float v3) {
+		strokeWidth[0] = (v1>0) ? v1 : 0.001f;
+		strokeWidth[1] = (v2>0) ? v2 : 0.001f;
+		strokeWidth[2] = (v3>0) ? v3 : 0.001f;
 	}
 	
 	
@@ -522,12 +518,24 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	/* define number of bands of the rainbow */
 	public void bands(int v) {
-		rBands = (v>0) ? v : 1;
+		bands(v,v,v);
+	}
+	
+	public void bands(int v1, int v2, int v3) {
+		rBands[0] = (v1>0) ? v1 : 1;
+		rBands[1] = (v2>0) ? v2 : 1;
+		rBands[2] = (v3>0) ? v3 : 1;
 	}
 	
 	/* total width of all rainbow bands */
 	public void width(float v) {
-		rWidth = v;
+		width(v,v,v);
+	}
+	
+	public void width(float v1, float v2, float v3) {
+		rWidth[0] = v1;
+		rWidth[1] = v2;
+		rWidth[2] = v3;
 	}
 	
 	/* set the height of the rainbow arches */
@@ -555,7 +563,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	/* choose design template for rainbow */
 	public void mode(int v) {
-		rMode = (v>0) ? v : 0;
+		randomMode = (v==1) ? 1 : 0;
 		generateRainbow();
 	}
 	
@@ -590,14 +598,34 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		
 		
 		outlet(1,"script send gui_slices set "+bSlices);
-		outlet(1,"script send gui_bands set "+rBands);
-		outlet(1,"script send gui_width set "+rWidth);
-		outlet(1,"script send gui_strokewidth set "+strokeWidth);
-		outlet(1,"script send gui_height set "+rHeight[0]);
+		
+		outlet(1,"script send gui_bands0 set "+rBands[0]);
+		outlet(1,"script send gui_bands1 set "+rBands[0]);
+		outlet(1,"script send gui_bands2 set "+rBands[1]);
+		outlet(1,"script send gui_bands3 set "+rBands[2]);
+		outlet(1,"script send gui_bands set bands "+rBands[0]+" "+rBands[1]+" "+rBands[2]);
+		
+		outlet(1,"script send gui_width0 set "+rWidth[0]);
+		outlet(1,"script send gui_width1 set "+rWidth[0]);
+		outlet(1,"script send gui_width2 set "+rWidth[1]);
+		outlet(1,"script send gui_width3 set "+rWidth[2]);
+		outlet(1,"script send gui_width set width "+rWidth[0]+" "+rWidth[1]+" "+rWidth[2]);
+		
+		outlet(1,"script send gui_strokewidth0 set "+strokeWidth[0]);
+		outlet(1,"script send gui_strokewidth1 set "+strokeWidth[0]);
+		outlet(1,"script send gui_strokewidth2 set "+strokeWidth[1]);
+		outlet(1,"script send gui_strokewidth3 set "+strokeWidth[2]);
+		outlet(1,"script send gui_strokewidth set strokewidth "+strokeWidth[0]+" "+strokeWidth[1]+" "+strokeWidth[2]);
+		
+		outlet(1,"script send gui_height0 set "+rHeight[0]);
+		outlet(1,"script send gui_height1 set "+rHeight[0]);
+		outlet(1,"script send gui_height2 set "+rHeight[1]);
+		outlet(1,"script send gui_height3 set "+rHeight[2]);
+		outlet(1,"script send gui_height set height "+rHeight[0]+" "+rHeight[1]+" "+rHeight[2]);
 		
 		outlet(1,"script send gui_morphspeed set "+slew);
 		outlet(1,"script send gui_morph set "+ (morphing ? 1 : 0));
-		outlet(1,"script send gui_mode set "+rMode);
+		outlet(1,"script send gui_mode set "+randomMode);
 		
 	}
 	
