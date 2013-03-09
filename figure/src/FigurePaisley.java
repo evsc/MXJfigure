@@ -2,7 +2,7 @@
  * Figure de la terre - mxj objects
  * 
  * paisley wallpaper
- * simple grid
+ * simple grid, bezier element
  * 
  */
 
