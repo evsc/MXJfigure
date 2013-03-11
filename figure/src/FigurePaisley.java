@@ -55,15 +55,18 @@ public class FigurePaisley extends MaxObject {
 	private int bSlices = 20;				// bezier slices
 	
 	private float[][][][] patternNoise;		// noise deviation from the master pattern
-	private float bNoiseWeight = 0.0f;		// weight of bezier noise deviation
+	private float bNoiseWeight = 0.05f;		// weight of bezier noise deviation
 	
 	private float[] masterWidth;			// the curve width of the master pattern
 	private float[][] widthNoise;			// noise deviation from master pattern width
-	private float wNoiseWeight = 0.0f;		// weight of width noise deviation
+	private float wNoiseWeight = 0.1f;		// weight of width noise deviation
 	
 	
 	// morphing
 	private boolean morphing = false;		//
+	private boolean animation = false;		// random noise changes every frame
+	private float noiseFactor = 1.f;		// how likely a noisevalue will be changed
+	private float returnFactor = 10.f;		// how likely the noisevalue will be set to 0
 	private float slew = 0.1f; 				// morphing speed
 	private float[] mPos = { 0, 0, 0 };
 	private float[] mSize = { 2, 2, 2 };
@@ -155,7 +158,7 @@ public class FigurePaisley extends MaxObject {
 		}
 		
 		createMasterPaisley();
-		randomize();
+		randomize(0.1f,0.f);
 	}
 
 
@@ -175,6 +178,8 @@ public class FigurePaisley extends MaxObject {
 	
 	/* draw aurora to jitter sketch object */
 	public void draw() {
+		
+		if(animation) randomize(noiseFactor/100.f, returnFactor/100.f);
 
 		sketch.call("reset");
 		
@@ -300,14 +305,14 @@ public class FigurePaisley extends MaxObject {
 	
 	
 	/* randomize bezier curves and widths */
-	public void randomize() {
-		randomizeElements();
-		randomizeWidth();
+	public void randomize(float f, float r) {
+		randomizeElements(f,r);
+		randomizeWidth(f,r);
 	}
 	
 	
 	/* initialize pattern bezier elements with random values */
-	public void randomizeElements() {
+	public void randomizeElements(float f, float r) {
 		
 		for(int p=0; p<pNumMax; p++) {
 			for(int e=0; e<eNumMax; e++) {
@@ -315,20 +320,34 @@ public class FigurePaisley extends MaxObject {
 				// randomize bezier point noise
 				for(int b=0; b<bNum; b++) {
 					// set noise to 0 if element is not active (<eNum)
-					patternNoise[p][e][b][0] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
-					patternNoise[p][e][b][1] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
-					patternNoise[p][e][b][2] = 0.f;
+					if(dice(f)) patternNoise[p][e][b][0] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
+					else if(dice(r)) patternNoise[p][e][b][0] = 0.f;
+					if(dice(f)) patternNoise[p][e][b][1] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
+					else if(dice(r)) patternNoise[p][e][b][1] = 0.f;
+					if(dice(f)) patternNoise[p][e][b][2] = 0.f;
+					else if(dice(r)) patternNoise[p][e][b][2] = 0.f;
 				}
 			}
 		}
 
 	}
 	
-	public void randomizeWidth() {
+	/* chance function. return true if random value within threshold */
+	private boolean dice(double f) {
+		
+		double v = Math.random();
+		if(v < f) return true;
+		else return false;
+	}
+
+
+
+	public void randomizeWidth(float f, float r) {
 		for(int p=0; p<pNumMax; p++) {
 			for(int e=0; e<eNumMax; e++) {
 				// randomize width noise
-				widthNoise[p][e] = (float) Math.random()*2 - 1.f;
+				if(dice(f)) widthNoise[p][e] = (float) Math.random()*2 - 1.f;
+				else if(dice(r)) widthNoise[p][e] = 0.f;
 			}
 		}
 	}
@@ -702,7 +721,17 @@ public class FigurePaisley extends MaxObject {
 		slew = (v > 0) ? v : 0.01f;
 	}
 	
+	public void animate(int v) {
+		animation = (v==1) ? true : false;
+	}
 	
+	public void noisefactor(float v) {
+		noiseFactor = v;
+	}
+	
+	public void returnfactor(float v) {
+		returnFactor = v;
+	}
 	
 	/* set the weight of the pattern noise */
 	public void noiseweight(float v1, float v2) {
@@ -757,6 +786,11 @@ public class FigurePaisley extends MaxObject {
 		outlet(1,"script send gui_blendmode1 set "+sketchBlendMode1);
 		outlet(1,"script send gui_blendmode2 set "+sketchBlendMode2);
 		
+		outlet(1,"script send gui_animate set "+(animation ? 1 : 0));
+		outlet(1,"script send gui_noisefactor set "+noiseFactor);
+		outlet(1,"script send gui_returnfactor set "+returnFactor);
+		outlet(1,"script send gui_morphspeed set "+slew);
+		outlet(1,"script send gui_morph set "+ (morphing ? 1 : 0));
 
 		outlet(1,"script send gui_size0 set "+pSize[0]);
 		outlet(1,"script send gui_sizex set "+pSize[0]);
@@ -772,19 +806,15 @@ public class FigurePaisley extends MaxObject {
 		outlet(1,"script send gui_gridy set "+pGrid[1]);
 		outlet(1, "script send gui_grid set grid " + pGrid[0] + " " + pGrid[1]);
 		
-		outlet(1,"script send gui_noiseweight0 set "+bNoiseWeight);
 		outlet(1,"script send gui_noiseweight1 set "+bNoiseWeight);
 		outlet(1,"script send gui_noiseweight2 set "+wNoiseWeight);
 		outlet(1,"script send gui_noiseweight set noiseweight "+bNoiseWeight + " " +wNoiseWeight);
 		
 		outlet(1,"script send gui_slices set "+bSlices);
-		
+		outlet(1,"script send gui_masterwidth set "+masterWidth[0]);
 		outlet(1,"script send gui_mirrordistance set "+mirrorDistance);
 		
-		outlet(1,"script send gui_morphspeed set "+slew);
-		outlet(1,"script send gui_morph set "+ (morphing ? 1 : 0));
 		
-		outlet(1,"script send gui_masterwidth set "+masterWidth[0]);
 	}
 	
 
