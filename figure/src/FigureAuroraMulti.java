@@ -109,7 +109,7 @@ public class FigureAuroraMulti extends MaxObject {
 		sketch.setAttr("blend_mode", new Atom[] { Atom.newAtom(6), Atom.newAtom(7) });
 		sketch.setAttr("antialias", sketchAntialias);
 		sketch.setAttr("glclearcolor",
-				new Atom[] { Atom.newAtom(0.), Atom.newAtom(1.), Atom.newAtom(1.), Atom.newAtom(1.) });
+				new Atom[] { Atom.newAtom(0.), Atom.newAtom(0.), Atom.newAtom(0.), Atom.newAtom(1.) });
 		sketch.setAttr("fsaa", sketchFsaa);
 		sketch.send("automatic", 0); /*
 									 * set to not-automatic, to be able to use
@@ -174,13 +174,13 @@ public class FigureAuroraMulti extends MaxObject {
 	 * sketch as jitter texture object
 	 */
 	public void bang() {
-//		if(debug) post("begin_capture");
+		if(debug) post("begin_capture");
 		texture.call("begin_capture"); // begin capturing	
-//		if(debug) post("draw");
+		if(debug) post("draw");
 		draw(); // draw aurora to sketch
-//		if(debug) post("end_capture");
+		if(debug) post("end_capture");
 		texture.call("end_capture"); // end capturing
-//		if(debug) post("draw");
+		if(debug) post("draw");
 		texture.call("draw"); // to output texture?
 		outlet(0, "jit_gl_texture", texture.getAttr("name")); // output texture
 	}
@@ -191,7 +191,7 @@ public class FigureAuroraMulti extends MaxObject {
 
 		if (noiseAnimation) moveNoise();
 
-		
+		if(debug) post("sketch reset");
 		sketch.call("reset");	// start drawing by resetting sketch object
 		
 		if (lineSmooth) sketch.call("glenable", "line_smooth");
@@ -297,11 +297,14 @@ public class FigureAuroraMulti extends MaxObject {
 
 			
 		}
+		
+		if(debug) post("drawimmediate");
 //		try {
 			sketch.call("drawimmediate");	
 //		} catch(Exception e) {
 //			if(debug) post("drawimmediate error: "+e);
 //		}
+		if(debug) post("after drawimmediate");
 	}
 
 	/*

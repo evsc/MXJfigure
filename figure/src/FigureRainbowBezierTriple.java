@@ -40,7 +40,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 
 	// Bezier display
 	private int colorMode = 1;		// how to calculate rainbow colors
-
+	private float[][] rainbowColor;
 	
 	// rainbow
 	private int[] rBands = {7,7,7};
@@ -98,7 +98,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		sketch.setAttr("blend_mode", new Atom[] { Atom.newAtom(6), Atom.newAtom(7) });
 		sketch.setAttr("antialias", sketchAntialias);
 		sketch.setAttr("glclearcolor", new Atom[] { Atom.newAtom(0.), Atom.newAtom(0.),
-						Atom.newAtom(1.), Atom.newAtom(1.) });
+						Atom.newAtom(0.), Atom.newAtom(1.) });
 		sketch.setAttr("fsaa", sketchFsaa);
 		sketch.send("automatic", 0); /*
 									 * set to not-automatic, to be able to use
@@ -122,6 +122,11 @@ public class FigureRainbowBezierTriple extends MaxObject {
 				for(int k=0; k<3; k++) bp[i][j][k] = 0.f;
 			}
 		}
+		
+		rainbowColor = new float[3][3];
+		rainbowColor[0] = new float[] { 1.f, 0.f, 0.f };
+		rainbowColor[1] = new float[] { 1.f, 1.f, 0.f };
+		rainbowColor[2] = new float[] { 0.f, 0.5f, 1.f };
 		
 		generateRainbow();
 		outputAllVariables();
@@ -168,6 +173,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		texture.call("draw");					// to output texture? 
 		if(debug) post("jit_gl_texture");
 		outlet(0,"jit_gl_texture",texture.getAttr("name"));		// output texture
+		if(debug) post("output, end bang");
 	}
 
 	
@@ -291,6 +297,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 //		} catch(Exception e) {
 //			if(debug) post("drawimmediate error: "+e);
 //		}	
+			if(debug) post("after drawimmediate");
 
 	}
 	
@@ -378,6 +385,9 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	/* return color of rainbow between 0 ..1 */
 	private Atom[] rColor(float i) {
+		if(colorMode==0) {
+			return interpolateColor(i);
+		}
 		float r = Color.getHSBColor(rainbowSpectrum(i), 1.0f, 0.8f).getRed()/255.f;
 		float g = Color.getHSBColor(rainbowSpectrum(i), 1.0f, 0.8f).getGreen()/255.f;
 		float b = Color.getHSBColor(rainbowSpectrum(i), 1.0f, 0.8f).getBlue()/255.f;
@@ -385,13 +395,30 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	}
 	
 	private float rainbowSpectrum(float v) {
-		if(colorMode==0) return v;
+//		if(colorMode==0) return v;
 		float k = v*2.f;
 		float m = (k>1) ? 1 + ((float) Math.sin((k-1.f)*1.570796)) : 1 - (float) Math.cos(k*1.570796);
 		return m/2.0f;
 	}
 	
-	
+	private Atom[] interpolateColor(float v) {
+		if(v < 0.5f) {
+			v *= 2.f;
+			// between rainbowColor[0] and rainbowColor[1]
+			float r = rainbowColor[0][0] + (rainbowColor[1][0] - rainbowColor[0][0])*v;
+			float g = rainbowColor[0][1] + (rainbowColor[1][1] - rainbowColor[0][1])*v;
+			float b = rainbowColor[0][2] + (rainbowColor[1][2] - rainbowColor[0][2])*v;
+			return new Atom[]{Atom.newAtom(r),Atom.newAtom(g),Atom.newAtom(b)};
+		} else {
+			// between rainbowColor[1] and rainbowColor[2]
+			v -= 0.5f;
+			v *= 2.f;
+			float r = rainbowColor[1][0] + (rainbowColor[2][0] - rainbowColor[1][0])*v;
+			float g = rainbowColor[1][1] + (rainbowColor[2][1] - rainbowColor[1][1])*v;
+			float b = rainbowColor[1][2] + (rainbowColor[2][2] - rainbowColor[1][2])*v;
+			return new Atom[]{Atom.newAtom(r),Atom.newAtom(g),Atom.newAtom(b)};
+		}
+	}
 
 	
 	
@@ -583,6 +610,18 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		generateRainbow();
 	}
 	
+	public void rainbowcolor(int r1, int g1, int b1, int r2, int g2, int b2, int r3, int g3, int b3) {
+		rainbowColor[0][0] = (float) r1/255.f; 
+		rainbowColor[0][1] = (float) g1/255.f; 
+		rainbowColor[0][2] = (float) b1/255.f; 
+		rainbowColor[1][0] = (float) r2/255.f; 
+		rainbowColor[1][1] = (float) g2/255.f; 
+		rainbowColor[1][2] = (float) b2/255.f; 
+		rainbowColor[2][0] = (float) r3/255.f; 
+		rainbowColor[2][1] = (float) g3/255.f; 
+		rainbowColor[2][2] = (float) b3/255.f; 
+	}
+	
 	
 	
 	/* === === === === === === === GUI in max patch === === === === === === === === */
@@ -642,6 +681,18 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		outlet(1,"script send gui_morphspeed set "+slew);
 		outlet(1,"script send gui_morph set "+ (morphing ? 1 : 0));
 		outlet(1,"script send gui_mode set "+randomMode);
+		
+		
+		outlet(1,"script send gui_rainbowcolor set rainbowcolor "
+				+(int) (rainbowColor[0][0]*255)+" "+(int) (rainbowColor[0][1]*255)+" "+(int) (rainbowColor[0][2]*255) + " "
+				+(int) (rainbowColor[1][0]*255)+" "+(int) (rainbowColor[1][1]*255)+" "+(int) (rainbowColor[1][2]*255) + " "
+				+(int) (rainbowColor[2][0]*255)+" "+(int) (rainbowColor[2][1]*255)+" "+(int) (rainbowColor[2][2]*255));
+		outlet(1,"script send gui_rainbowcolor1 bgcolor "+rainbowColor[0][0]+" "+rainbowColor[0][1]+
+				" "+rainbowColor[0][2] + " 1.");
+		outlet(1,"script send gui_rainbowcolor2 bgcolor "+rainbowColor[1][0]+" "+rainbowColor[1][1]+
+				" "+rainbowColor[1][2] + " 1.");
+		outlet(1,"script send gui_rainbowcolor3 bgcolor "+rainbowColor[2][0]+" "+rainbowColor[2][1]+
+				" "+rainbowColor[2][2] + " 1.");
 		
 	}
 	

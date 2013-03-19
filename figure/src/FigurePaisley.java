@@ -26,9 +26,10 @@ public class FigurePaisley extends MaxObject {
 	private int texture_height = 240;
 	
 	
+	private float[] bgColor = { 0.7f, 0.7f, 0.7f, 1.f };
 	
 	// grid
-	private float[] pGrid = { 0.3f, 0.3f };
+	private float[] pGrid = { 0.6f, 0.6f };
 	private float[] pPos = {0,0,0};	// center position
 	private float[] pSize = {2,2,2};		// size of the grid?? 
 	private float mirrorDistance = 0.5f;
@@ -36,8 +37,8 @@ public class FigurePaisley extends MaxObject {
 	// 
 	private int pNumMax = 24;	// maximum number of paisley patterns
 	
-	
 	// pattern parameter
+	private float[][] patternColor;	
 	private float[][][] masterPattern;		// the master pattern template, 
 											// every displayed pattern will be a slight variation of this one
 	
@@ -65,6 +66,7 @@ public class FigurePaisley extends MaxObject {
 	// morphing
 	private boolean morphing = false;		//
 	private boolean animation = false;		// random noise changes every frame
+	private boolean[] activated;			// which pattern is allowed to move
 	private float noiseFactor = 1.f;		// how likely a noisevalue will be changed
 	private float returnFactor = 10.f;		// how likely the noisevalue will be set to 0
 	private float slew = 0.1f; 				// morphing speed
@@ -140,6 +142,8 @@ public class FigurePaisley extends MaxObject {
 		mWidthNoise = new float[pNumMax][eNumMax];
 		ePoints = new int[eNumMax];
 		eAnchor = new int[eNumMax];
+		activated = new boolean[pNumMax];
+		patternColor = new float[pNumMax][3];
 		
 		for(int e=0; e<eNumMax; e++ ) {
 			masterWidth[e] = 0.05f;
@@ -155,6 +159,8 @@ public class FigurePaisley extends MaxObject {
 				}
 				mWidthNoise[p][e] = 0.f;
 			}
+			activated[p] = false;
+			for(int c=0; c<3; c++) patternColor[p][c] = 1.f;
 		}
 		
 		createMasterPaisley();
@@ -168,13 +174,13 @@ public class FigurePaisley extends MaxObject {
 	 * sketch as jitter texture object
 	 */
 	public void bang() {
-//		if(debug) post("begin_capture");
+		if(debug) post("begin_capture");
 		texture.call("begin_capture"); // begin capturing	
-//		if(debug) post("draw");
+		if(debug) post("draw");
 		draw(); // draw aurora to sketch
-//		if(debug) post("end_capture");
+		if(debug) post("end_capture");
 		texture.call("end_capture"); // end capturing
-//		if(debug) post("draw");
+		if(debug) post("draw");
 		texture.call("draw"); // to output texture?
 		outlet(0, "jit_gl_texture", texture.getAttr("name")); // output texture
 	}
@@ -185,8 +191,12 @@ public class FigurePaisley extends MaxObject {
 		
 		if(animation) randomize(noiseFactor/100.f, returnFactor/100.f);
 
-//		if(debug) post("reset");
+		if(debug) post("reset");
 		sketch.call("reset");
+		
+		sketch.call("glclearcolor",
+				new Atom[] { Atom.newAtom(bgColor[0]), Atom.newAtom(bgColor[1]), Atom.newAtom(bgColor[2]), Atom.newAtom(bgColor[3]) });
+		sketch.call("glclear");
 		
 //		if(debug) post("line_smooth");
 		if (lineSmooth) sketch.call("glenable", "line_smooth");
@@ -241,15 +251,19 @@ public class FigurePaisley extends MaxObject {
 				_x = (row%2 == 0) ? -borderx : -borderx + _grid[0];
 				flip = (row%2 ==0) ? 1f : -1f;
 				_y += _grid[1];
-				if(_y > bordery) goon = false;
+				if(_y > bordery) {
+					goon = false;
+				}
 			}
 
 			_i++;
-			if(_i >= pNumMax) goon = false;
+			if(_i >= pNumMax) {
+				goon = false;
+			}
 		}
 
 		
-//		if(debug) post("drawimmediate");
+		if(debug) post("drawimmediate");
 		// call drawimmediate, to execute drawing of sketch object
 		
 //		try {
@@ -257,7 +271,7 @@ public class FigurePaisley extends MaxObject {
 //		} catch(Exception e) {
 //			if(debug) post("drawimmediate error: "+e);
 //		}
-		
+		if(debug) post("after drawimmediate");
 		
 	}
 
@@ -329,17 +343,19 @@ public class FigurePaisley extends MaxObject {
 	public void randomizeElements(float f, float r) {
 		
 		for(int p=0; p<pNumMax; p++) {
-			for(int e=0; e<eNumMax; e++) {
-				
-				// randomize bezier point noise
-				for(int b=0; b<bNum; b++) {
-					// set noise to 0 if element is not active (<eNum)
-					if(dice(f)) patternNoise[p][e][b][0] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
-					else if(dice(r)) patternNoise[p][e][b][0] = 0.f;
-					if(dice(f)) patternNoise[p][e][b][1] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
-					else if(dice(r)) patternNoise[p][e][b][1] = 0.f;
-					if(dice(f)) patternNoise[p][e][b][2] = 0.f;
-					else if(dice(r)) patternNoise[p][e][b][2] = 0.f;
+			if(activated[p]) {
+				for(int e=0; e<eNumMax; e++) {
+
+					// randomize bezier point noise
+					for(int b=0; b<bNum; b++) {
+						// set noise to 0 if element is not active (<eNum)
+						if(dice(f)) patternNoise[p][e][b][0] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
+						else if(dice(r)) patternNoise[p][e][b][0] = 0.f;
+						if(dice(f)) patternNoise[p][e][b][1] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
+						else if(dice(r)) patternNoise[p][e][b][1] = 0.f;
+						if(dice(f)) patternNoise[p][e][b][2] = 0.f;
+						else if(dice(r)) patternNoise[p][e][b][2] = 0.f;
+					}
 				}
 			}
 		}
@@ -358,10 +374,12 @@ public class FigurePaisley extends MaxObject {
 
 	public void randomizeWidth(float f, float r) {
 		for(int p=0; p<pNumMax; p++) {
-			for(int e=0; e<eNumMax; e++) {
-				// randomize width noise
-				if(dice(f)) widthNoise[p][e] = (float) Math.random()*2 - 1.f;
-				else if(dice(r)) widthNoise[p][e] = 0.f;
+			if(activated[p]) {
+				for(int e=0; e<eNumMax; e++) {
+					// randomize width noise
+					if(dice(f)) widthNoise[p][e] = (float) Math.random()*2 - 1.f;
+					else if(dice(r)) widthNoise[p][e] = 0.f;
+				}
 			}
 		}
 	}
@@ -420,13 +438,13 @@ public class FigurePaisley extends MaxObject {
 			lastpoint = (ePoints[e]==3) ? masterDeviation[0] : masterDeviation[ePoints[e]-1];
 			
 			// draw bezier curve
-			drawBezier(_x, _y, masterDeviation, masterWidth[e] + _wNoise[e]*wNoiseWeight, _slices, _sx, _sy);
+			drawBezier(_i, _x, _y, masterDeviation, masterWidth[e] + _wNoise[e]*wNoiseWeight, _slices, _sx, _sy);
 		}
 	}
 	
 	
 	/* draw n-grade bezier with strokewidth that converges at endpoints */
-	public void drawBezier(float x, float y, float[][] points, float w, int slices, float _sx, float _sy) {
+	public void drawBezier(int _i, float x, float y, float[][] points, float w, int slices, float _sx, float _sy) {
 		
 		// TODO calculate slices based on curve length ?
 		float _add = 1.f / (float) (slices);			// defines segments of curve
@@ -479,7 +497,7 @@ public class FigurePaisley extends MaxObject {
 
 			// --- - - - - - - - - --- - -draw BEZIER - - - -- - - -- - -- - -- -- -- - ---- 
 
-			sketch.call("glcolor", pColor());
+			sketch.call("glcolor", pColor(_i));
 
 			sketch.call("glbegin", "tri_strip");
 
@@ -504,8 +522,11 @@ public class FigurePaisley extends MaxObject {
 
 
 	/* return color in atom format */
-	private Atom[] pColor() {
-		return new Atom[]{Atom.newAtom(1.0f),Atom.newAtom(1.0f),Atom.newAtom(1.0f)};
+	private Atom[] pColor(int _i) {
+		return new Atom[]{
+				Atom.newAtom(patternColor[_i][0]),
+				Atom.newAtom(patternColor[_i][1]),
+				Atom.newAtom(patternColor[_i][2])};
 	}
 	
 	/*
@@ -688,10 +709,11 @@ public class FigurePaisley extends MaxObject {
 		sketch.setAttr("antialias", sketchAntialias);
 	}
 
-	public void clearColor(float r, float g, float b, float a) {
-		sketch.setAttr("glclearcolor",
-				new Atom[] { Atom.newAtom(r), Atom.newAtom(g), Atom.newAtom(b),
-						Atom.newAtom(a) });
+	public void clearColor(float r, float g, float b) {
+		bgColor[0] = (float) r / 255.f;
+		bgColor[1] = (float) g / 255.f;
+		bgColor[2] = (float) b / 255.f;
+		bgColor[3] = 1.f;
 	}
 
 	public void fsaa(int v) {
@@ -729,6 +751,11 @@ public class FigurePaisley extends MaxObject {
 		debug = (v==1) ? true : false;
 	}
 	
+	public void activate(int no, int v) {
+		if(no >= 0 && no <= pNumMax) {
+			activated[no] = (v==0) ? false : true;
+		}
+	}
 	
 	/* toggle morphing */
 	public void morph(int v) {
@@ -785,6 +812,14 @@ public class FigurePaisley extends MaxObject {
 		masterPattern[e][5] = new float[] { x6, y6, 0.f };
 	}
 	
+	public void patterncolor(int _i, int r, int g, int b) {
+		if(_i >= 0 && _i < pNumMax) {
+			patternColor[_i][0] = (float) r / 255.f;
+			patternColor[_i][1] = (float) g / 255.f;
+			patternColor[_i][2] = (float) b / 255.f;
+		}
+	}
+	
 	
 	/* === === === === === === === GUI in max patch === === === === === === === === */
 	
@@ -832,6 +867,12 @@ public class FigurePaisley extends MaxObject {
 		outlet(1,"script send gui_slices set "+bSlices);
 		outlet(1,"script send gui_masterwidth set "+masterWidth[0]);
 		outlet(1,"script send gui_mirrordistance set "+mirrorDistance);
+		
+		
+		outlet(1,"script send gui_clearcolor set clearColor "
+				+(int) (bgColor[0]*255)+" "+(int) (bgColor[1]*255)+" "+(int) (bgColor[2]*255));
+		outlet(1,"script send gui_clearcolor1 bgcolor "+bgColor[0]+" "+bgColor[1]+
+				" "+bgColor[2] + " 1.");
 		
 		
 	}
