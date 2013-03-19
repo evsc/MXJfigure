@@ -26,8 +26,8 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 640;		// TODO: include resize function
-	private int texture_height = 480;
+	private int texture_width = 640;		
+	private int texture_height = 240;
 		
 	// Bezier curve, rainbow backbone
 	private int rNum = 1;					// active number of rainbows
@@ -98,7 +98,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		sketch.setAttr("blend_mode", new Atom[] { Atom.newAtom(6), Atom.newAtom(7) });
 		sketch.setAttr("antialias", sketchAntialias);
 		sketch.setAttr("glclearcolor", new Atom[] { Atom.newAtom(0.), Atom.newAtom(0.),
-						Atom.newAtom(0.), Atom.newAtom(1.) });
+						Atom.newAtom(1.), Atom.newAtom(1.) });
 		sketch.setAttr("fsaa", sketchFsaa);
 		sketch.send("automatic", 0); /*
 									 * set to not-automatic, to be able to use
@@ -162,14 +162,18 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	public void bang() {
 		texture.call("begin_capture");	// begin capturing	
 		draw();							// draw rainbow to sketch
+		if(debug) post("end_capture");
 		texture.call("end_capture");			// end capturing
+		if(debug) post("draw");
 		texture.call("draw");					// to output texture? 
+		if(debug) post("jit_gl_texture");
 		outlet(0,"jit_gl_texture",texture.getAttr("name"));		// output texture
 	}
 
 	
 	/* draw rainbow to jitter sketch object */
 	public void draw() {
+
 
 		// create local variables, to avoid conflict when life-updating variables while rendering
 		float _bp[][][] = new float[rNumMax][pointCount][3];
@@ -281,7 +285,12 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		}
 		
 		// call drawimmediate, to execute drawing of sketch object
-		sketch.call("drawimmediate");		
+//		try {
+			if(debug) post("drawimmediate");
+			sketch.call("drawimmediate");	
+//		} catch(Exception e) {
+//			if(debug) post("drawimmediate error: "+e);
+//		}	
 
 	}
 	
@@ -394,6 +403,13 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	
 	/* === === === === === === === jit.gl.sketch === === === === === === === === */
+	
+	public void resize(int x, int y) {
+		texture_width = x;
+		texture_height = y;
+		texture.setAttr("dim",new Atom[] { Atom.newAtom(texture_width), Atom.newAtom(texture_height) });
+		if(debug) post("resized to "+x + " "+y);
+	}
 	
 	public void depthEnable(int v) {
 		sketchDepthEnable = (v == 1) ? 1 : 0;

@@ -17,13 +17,13 @@ public class FigurePaisley extends MaxObject {
 	
 	// render context for jitter opengl objects
 	private String context = "foo";
-	private boolean debug = true;
+	private boolean debug = false;
 
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 640; 		// TODO: include resize function
-	private int texture_height = 480;
+	private int texture_width = 640; 		
+	private int texture_height = 240;
 	
 	
 	
@@ -34,7 +34,7 @@ public class FigurePaisley extends MaxObject {
 	private float mirrorDistance = 0.5f;
 	
 	// 
-	private int pNumMax = 100;	// maximum number of paisley patterns
+	private int pNumMax = 24;	// maximum number of paisley patterns
 	
 	
 	// pattern parameter
@@ -118,7 +118,7 @@ public class FigurePaisley extends MaxObject {
 		sketch.setAttr("blend_mode", new Atom[] { Atom.newAtom(6), Atom.newAtom(7) });
 		sketch.setAttr("antialias", sketchAntialias);
 		sketch.setAttr("glclearcolor",
-				new Atom[] { Atom.newAtom(0.), Atom.newAtom(0.), Atom.newAtom(0.), Atom.newAtom(1.) });
+				new Atom[] { Atom.newAtom(0.), Atom.newAtom(1.), Atom.newAtom(0.), Atom.newAtom(1.) });
 		sketch.setAttr("fsaa", sketchFsaa);
 		sketch.send("automatic", 0); /*
 									 * set to not-automatic, to be able to use
@@ -168,9 +168,13 @@ public class FigurePaisley extends MaxObject {
 	 * sketch as jitter texture object
 	 */
 	public void bang() {
+//		if(debug) post("begin_capture");
 		texture.call("begin_capture"); // begin capturing	
+//		if(debug) post("draw");
 		draw(); // draw aurora to sketch
+//		if(debug) post("end_capture");
 		texture.call("end_capture"); // end capturing
+//		if(debug) post("draw");
 		texture.call("draw"); // to output texture?
 		outlet(0, "jit_gl_texture", texture.getAttr("name")); // output texture
 	}
@@ -181,8 +185,10 @@ public class FigurePaisley extends MaxObject {
 		
 		if(animation) randomize(noiseFactor/100.f, returnFactor/100.f);
 
+//		if(debug) post("reset");
 		sketch.call("reset");
 		
+//		if(debug) post("line_smooth");
 		if (lineSmooth) sketch.call("glenable", "line_smooth");
 		else sketch.call("gldisable", "line_smooth");
 		
@@ -214,8 +220,9 @@ public class FigurePaisley extends MaxObject {
 		int _i = 0;			// current item
 		boolean goon = true;	// go on
 		
-		float _x = (float) Math.floor(1.f / _grid[0]) * -_grid[0];
-		float _y = (float) Math.floor(0.7f / _grid[1]) * -_grid[1];
+		float ratio = (float) texture_width / (float) texture_height;
+		float _x = (float) Math.floor(ratio / _grid[0]) * -_grid[0];
+		float _y = (float) Math.floor(1.f / _grid[1]) * -_grid[1];
 		float borderx = -_x;
 		float bordery = -_y;
 		int row = 0;
@@ -238,12 +245,19 @@ public class FigurePaisley extends MaxObject {
 			}
 
 			_i++;
-			if(_i > pNumMax) goon = false;
+			if(_i >= pNumMax) goon = false;
 		}
 
 		
+//		if(debug) post("drawimmediate");
 		// call drawimmediate, to execute drawing of sketch object
-		sketch.call("drawimmediate");	
+		
+//		try {
+			sketch.call("drawimmediate");	
+//		} catch(Exception e) {
+//			if(debug) post("drawimmediate error: "+e);
+//		}
+		
 		
 	}
 
@@ -645,7 +659,12 @@ public class FigurePaisley extends MaxObject {
 
 	/* === === === === === === === jit.gl.sketch === === === === === === === === */
 	
-	
+	public void resize(int x, int y) {
+		texture_width = x;
+		texture_height = y;
+		texture.setAttr("dim",new Atom[] { Atom.newAtom(texture_width), Atom.newAtom(texture_height) });
+		if(debug) post("resized to "+x + " "+y);
+	}
 	
 	public void depthEnable(int v) {
 		sketchDepthEnable = (v == 1) ? 1 : 0;
