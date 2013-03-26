@@ -21,8 +21,8 @@ public class FigureAuroraMulti extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 640; 		
-	private int texture_height = 240;
+	private int texture_width = 2048; 		
+	private int texture_height = 768;
 
 	// Bezier curve, aurora backbone
 	private int aMode = 0;					// for default aurora settings
@@ -919,39 +919,39 @@ public class FigureAuroraMulti extends MaxObject {
 		outlet(1, "script send gui_noisestep set noisestep " + noiseStep[0]
 				+ " " + noiseStep[1] + " " + noiseStep[2] + " " + noiseStep[3]);
 //		outlet(1,"script send gui_noisestep0 set "+noiseStep[0]);
-		outlet(1,"script send gui_noisestep1 set "+noiseStep[0]);
-		outlet(1,"script send gui_noisestep2 set "+noiseStep[1]);
-		outlet(1,"script send gui_noisestep3 set "+noiseStep[2]);
-		outlet(1,"script send gui_noisestep4 set "+noiseStep[3]);
+		outlet(1,"script send gui_noisestep0 set "+noiseStep[0]);
+		outlet(1,"script send gui_noisestep1 set "+noiseStep[1]);
+		outlet(1,"script send gui_noisestep2 set "+noiseStep[2]);
+		outlet(1,"script send gui_noisestep3 set "+noiseStep[3]);
 		
 		outlet(1, "script send gui_noisef set noisef " + noiseF[0]
 				+ " " + noiseF[1] + " " + noiseF[2] + " " + noiseF[3]);
 //		outlet(1,"script send gui_noisef0 set "+noiseF[0]);
-		outlet(1,"script send gui_noisef1 set "+noiseF[0]);
-		outlet(1,"script send gui_noisef2 set "+noiseF[1]);
-		outlet(1,"script send gui_noisef3 set "+noiseF[2]);
-		outlet(1,"script send gui_noisef4 set "+noiseF[3]);
+		outlet(1,"script send gui_noisef0 set "+noiseF[0]);
+		outlet(1,"script send gui_noisef1 set "+noiseF[1]);
+		outlet(1,"script send gui_noisef2 set "+noiseF[2]);
+		outlet(1,"script send gui_noisef3 set "+noiseF[3]);
 		
 		
 		outlet(1, "script send gui_noiseweight set noiseweight " + noiseWeight[0][0]
 				+ " " + noiseWeight[0][1] + " " + noiseWeight[1][0] + " " + noiseWeight[1][1]
 				+ " " + noiseWeight[2][0] + " " + noiseWeight[2][1] + " " + noiseWeight[3][0]
 				+ " " + noiseWeight[3][1]);
-		outlet(1,"script send gui_noiseweight1 set "+noiseWeight[0][0]);
-		outlet(1,"script send gui_noiseweight2 set "+noiseWeight[0][1]);
-		outlet(1,"script send gui_noiseweight3 set "+noiseWeight[1][0]);
-		outlet(1,"script send gui_noiseweight4 set "+noiseWeight[1][1]);
-		outlet(1,"script send gui_noiseweight5 set "+noiseWeight[2][0]);
-		outlet(1,"script send gui_noiseweight6 set "+noiseWeight[2][1]);
-		outlet(1,"script send gui_noiseweight7 set "+noiseWeight[3][0]);
-		outlet(1,"script send gui_noiseweight8 set "+noiseWeight[3][1]);
+		outlet(1,"script send gui_noiseweight0x set "+noiseWeight[0][0]);
+		outlet(1,"script send gui_noiseweight0y set "+noiseWeight[0][1]);
+		outlet(1,"script send gui_noiseweight1x set "+noiseWeight[1][0]);
+		outlet(1,"script send gui_noiseweight1y set "+noiseWeight[1][1]);
+		outlet(1,"script send gui_noiseweight2x set "+noiseWeight[2][0]);
+		outlet(1,"script send gui_noiseweight2y set "+noiseWeight[2][1]);
+		outlet(1,"script send gui_noiseweight3x set "+noiseWeight[3][0]);
+		outlet(1,"script send gui_noiseweight3y set "+noiseWeight[3][1]);
 		
 		outlet(1,"script send gui_colorbyheight set "+ (rayColorByHeight ? 1 : 0));
-		outlet(1,"script send gui_coloroffset set "+rayColorOffset[0]);
+		outlet(1,"script send gui_coloroffset0 set "+rayColorOffset[0]);
 		outlet(1,"script send gui_coloroffset1 set "+rayColorOffset[0]);
 		outlet(1,"script send gui_coloroffset2 set "+rayColorOffset[1]);
 		outlet(1,"script send gui_coloroffset3 set "+rayColorOffset[2]);
-		outlet(1,"script send gui_colormult set "+rayColorMult[0]);
+		outlet(1,"script send gui_colormult0 set "+rayColorMult[0]);
 		outlet(1,"script send gui_colormult1 set "+rayColorMult[0]);
 		outlet(1,"script send gui_colormult2 set "+rayColorMult[1]);
 		outlet(1,"script send gui_colormult3 set "+rayColorMult[2]);
@@ -961,16 +961,16 @@ public class FigureAuroraMulti extends MaxObject {
 	}
 	
 	private void outputBezierVariables() {
-		outlet(1,"script send gui_pa1 set "+abPoint[0][0][0]);
-		outlet(1,"script send gui_pa2 set "+abPoint[0][0][1]);
-		outlet(1,"script send gui_pa3 set "+abPoint[0][0][2]);
+		outlet(1,"script send gui_pax set "+abPoint[0][0][0]);
+		outlet(1,"script send gui_pay set "+abPoint[0][0][1]);
+		outlet(1,"script send gui_paz set "+abPoint[0][0][2]);
 		
 		outlet(1, "script send gui_pa set pA " + abPoint[0][0][0] + " "
 				+ abPoint[0][0][1] + " " + abPoint[0][0][2]);
 
-		outlet(1,"script send gui_pb1 set "+abPoint[0][abPointCount - 1][0]);
-		outlet(1,"script send gui_pb2 set "+abPoint[0][abPointCount - 1][1]);
-		outlet(1,"script send gui_pb3 set "+abPoint[0][abPointCount - 1][2]);
+		outlet(1,"script send gui_pbx set "+abPoint[0][abPointCount - 1][0]);
+		outlet(1,"script send gui_pby set "+abPoint[0][abPointCount - 1][1]);
+		outlet(1,"script send gui_pbz set "+abPoint[0][abPointCount - 1][2]);
 		
 		outlet(1, "script send gui_pb set pB "
 				+ abPoint[0][abPointCount - 1][0] + " "

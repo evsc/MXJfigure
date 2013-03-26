@@ -22,11 +22,17 @@ public class FigurePaisley extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 640; 		
-	private int texture_height = 240;
+	private int texture_width = 2048; 		
+	private int texture_height = 768;
 	
 	
 	private float[] bgColor = { 0.7f, 0.7f, 0.7f, 1.f };
+	private float[] bgColorFade1 = { 0,0,0,1 };
+	private float[] bgColorFade2 = { 1,1,1,1 };
+	private boolean bgFade = false;
+	private boolean bgFading = false;		// set true while fading
+	private int bgFadeTime = 25;
+	private int bgFadeCounter = 0;
 	
 	// grid
 	private float[] pGrid = { 0.6f, 0.6f };
@@ -35,7 +41,9 @@ public class FigurePaisley extends MaxObject {
 	private float mirrorDistance = 0.5f;
 	
 	// 
-	private int pNumMax = 24;	// maximum number of paisley patterns
+	private int pNumMax = 96;				// maximum number of paisley patterns
+	private int rows = 6;
+	private int cols = 16;
 	
 	// pattern parameter
 	private float[][] patternColor;	
@@ -174,13 +182,13 @@ public class FigurePaisley extends MaxObject {
 	 * sketch as jitter texture object
 	 */
 	public void bang() {
-		if(debug) post("begin_capture");
+//		if(debug) post("begin_capture");
 		texture.call("begin_capture"); // begin capturing	
-		if(debug) post("draw");
+//		if(debug) post("draw");
 		draw(); // draw aurora to sketch
-		if(debug) post("end_capture");
+//		if(debug) post("end_capture");
 		texture.call("end_capture"); // end capturing
-		if(debug) post("draw");
+//		if(debug) post("draw");
 		texture.call("draw"); // to output texture?
 		outlet(0, "jit_gl_texture", texture.getAttr("name")); // output texture
 	}
@@ -190,8 +198,25 @@ public class FigurePaisley extends MaxObject {
 	public void draw() {
 		
 		if(animation) randomize(noiseFactor/100.f, returnFactor/100.f);
+		
+		if(bgFading) {
+			bgFadeCounter++;
+			float fadeStep = bgFadeCounter * 1.f/(float) bgFadeTime;
+			if(debug) post("fadestep "+fadeStep+"  counter "+bgFadeCounter);
+			bgColor[0] = bgColorFade1[0] + (bgColorFade2[0]-bgColorFade1[0]) * fadeStep;
+			bgColor[1] = bgColorFade1[1] + (bgColorFade2[1]-bgColorFade1[1]) * fadeStep;
+			bgColor[2] = bgColorFade1[2] + (bgColorFade2[2]-bgColorFade1[2]) * fadeStep;
+			
+			if(bgFadeCounter >= bgFadeTime) {
+				// reached end of fade
+				bgColor[0] = bgColorFade2[0];
+				bgColor[1] = bgColorFade2[1];
+				bgColor[2] = bgColorFade2[2];
+				bgFading = false;
+			}
+		}
 
-		if(debug) post("reset");
+//		if(debug) post("reset");
 		sketch.call("reset");
 		
 		sketch.call("glclearcolor",
@@ -227,43 +252,63 @@ public class FigurePaisley extends MaxObject {
 		
 		// - - - - - - - - - - - - - - - - - - - - - - -
 		
-		int _i = 0;			// current item
-		boolean goon = true;	// go on
+//		int _i = 0;			// current item
+//		boolean goon = true;	// go on
+//		
+//		float ratio = (float) texture_width / (float) texture_height;
+//		float _x = (float) Math.floor(ratio / _grid[0]) * -_grid[0];
+//		float _y = (float) Math.floor(1.f / _grid[1]) * -_grid[1];
+//		float borderx = -_x;
+//		float bordery = -_y;
+//		int row = 0;
+//		float flip = 1.f;
+//		
+//		while(goon) {
+//
+//			drawPaisley(_i, _pos[0] + _x,_pos[1] + _y, _size[0], _size[1]*flip, _slices);
+//			
+//			
+//			// adapt the x and y values to the paisley grid
+//			// every second row the elements are positioned in between the top row grid
+//			_x+= _grid[0]*2;
+//			if(_x > borderx) {
+//				row++;
+//				_x = (row%2 == 0) ? -borderx : -borderx + _grid[0];
+//				flip = (row%2 ==0) ? 1f : -1f;
+//				_y += _grid[1];
+//				if(_y > bordery) {
+//					goon = false;
+//				}
+//			}
+//
+//			_i++;
+//			if(_i >= pNumMax) {
+//				goon = false;
+//			}
+//		}
 		
-		float ratio = (float) texture_width / (float) texture_height;
-		float _x = (float) Math.floor(ratio / _grid[0]) * -_grid[0];
-		float _y = (float) Math.floor(1.f / _grid[1]) * -_grid[1];
-		float borderx = -_x;
-		float bordery = -_y;
-		int row = 0;
+		
+		// new drawing loop, create 16x9 grid and only draw if item is within frame
+		float borderx = -_grid[0] * cols/2.f;
+		float bordery = _grid[1] * rows/2.f;
+		float wratio = (float) texture_width / (float) texture_height;
+		float hratio = 1.f;
 		float flip = 1.f;
-		
-		while(goon) {
-
-			drawPaisley(_i, _pos[0] + _x,_pos[1] + _y, _size[0], _size[1]*flip, _slices);
-			
-			
-			// adapt the x and y values to the paisley grid
-			// every second row the elements are positioned in between the top row grid
-			_x+= _grid[0]*2;
-			if(_x > borderx) {
-				row++;
-				_x = (row%2 == 0) ? -borderx : -borderx + _grid[0];
-				flip = (row%2 ==0) ? 1f : -1f;
-				_y += _grid[1];
-				if(_y > bordery) {
-					goon = false;
+		for(int r=0; r<rows; r++) {
+			for(int c=0; c<cols; c++) {
+				float _x = borderx + c * _grid[0];
+				_x += (r%2 == 0) ? _grid[0]/2.f : 0;	// each second is shifted to the right
+				float _y = bordery - r * _grid[1];
+				flip = (r%2 ==0) ? 1f : -1f;
+				if(_x >= -wratio && _x <= wratio && _y >= -hratio && _y <= hratio) {
+					drawPaisley(r*cols+c, _pos[0] + _x,_pos[1] + _y, _size[0], _size[1]*flip, _slices);
 				}
 			}
-
-			_i++;
-			if(_i >= pNumMax) {
-				goon = false;
-			}
 		}
+		
 
 		
-		if(debug) post("drawimmediate");
+//		if(debug) post("drawimmediate");
 		// call drawimmediate, to execute drawing of sketch object
 		
 //		try {
@@ -271,7 +316,7 @@ public class FigurePaisley extends MaxObject {
 //		} catch(Exception e) {
 //			if(debug) post("drawimmediate error: "+e);
 //		}
-		if(debug) post("after drawimmediate");
+//		if(debug) post("after drawimmediate");
 		
 	}
 
@@ -303,18 +348,21 @@ public class FigurePaisley extends MaxObject {
 		eAnchor[e] = 1;
 		masterWidth[e] = 0.1f;
 		masterpattern(e,4,-0.5f, -0.43f, -0.3f, 0.08f, 0.f, -0.15f, 0.14f, 0.15f, 0, 0, 0, 0);
+//		masterpattern(e,4,-0.5f, -0.63f, -0.3f, -0.12f, 0.f, -0.35f, 0.14f, -0.05f, 0, 0, 0, 0);
 		
 		e++;
 		// leaf 2
 		eAnchor[e] = 0;
 		masterWidth[e] = 0.07f;
 		masterpattern(e,4,-0.51f, -0.13f, -0.3f, 0.67f, 0.08f, 0.22f, -0.1f, 0.16f, 0, 0, 0, 0);
+//		masterpattern(e,4,-0.51f, -0.33f, -0.3f, 0.47f, 0.08f, 0.02f, -0.1f, -0.04f, 0, 0, 0, 0);
 		
 		e++; 
 		// bottom curve
 		eAnchor[e] = 2;
 		masterWidth[e] = 0.05f;
 		masterpattern(e,4,0.f,0.f, 0.f, 1.24f, -0.2f, 0.48f, -0.4f, 0.73f, 0, 0, 0, 0);
+//		masterpattern(e,4,0.f,-0.2f, 0.f, 1.04f, -0.2f, 0.28f, -0.4f, 0.53f, 0, 0, 0, 0);
 		
 		
 		e++;
@@ -322,13 +370,28 @@ public class FigurePaisley extends MaxObject {
 		eAnchor[e] = 0;
 		masterWidth[e] = 0.07f;
 		masterpattern(e,3,-0.06f, -0.24f, 0.27f, -0.05f, 0.29f, -0.18f, 0, 0, 0, 0, 0, 0);
+//		masterpattern(e,3,-0.06f, -0.44f, 0.27f, -0.25f, 0.29f, -0.38f, 0, 0, 0, 0, 0, 0);
 		
+		/* special anchoring of element 
+			*  0 = no effect
+			*  1 = keep first point fixed
+			*  2 = first point is relative to startpoint of previous element
+			*  3 = first point is relative to endpoint of previous element
+			*/
 		
-		e++;
-		// drop
-//		eAnchor[e++] = 3;
-//		masterWidth[e] = 0.07f;
-//		masterpattern(e,3,-0.06f, 1.36f, -0.27f, 1.55f, 0.29f, 1.42f, 0, 0, 0, 0, 0, 0);
+		//y shift
+		// masterPattern = new float[eNumMax][bNum][3]
+		for(int en=0; en<eNumMax; en++) {
+			if(en==0 || en==3 || en==1) {
+				for(int b=0; b<ePoints[en]; b++) {
+					if(en==2 && b==0) {
+						
+					} else {
+						masterPattern[en][b][1] = masterPattern[en][b][1] - 0.1f;
+					}
+				}
+			}
+		}
 	}
 	
 	
@@ -491,8 +554,8 @@ public class FigurePaisley extends MaxObject {
 				bezierOffset[_t][1][0] = x + _mirror*_dir + bezierPoint[_t][0]*_sx*_dir + _offInside[0]*_sx*_dir;
 				bezierOffset[_t][0][1] = y + bezierPoint[_t][1]*_sy + _offOutside[1]*_sy;
 				bezierOffset[_t][1][1] = y + bezierPoint[_t][1]*_sy + _offInside[1]*_sy;
-				bezierOffset[_t][0][2] = 0;
-				bezierOffset[_t][1][2] = 0;
+				bezierOffset[_t][0][2] = -0.5f;
+				bezierOffset[_t][1][2] = -0.5f;
 			}
 
 			// --- - - - - - - - - --- - -draw BEZIER - - - -- - - -- - -- - -- -- -- - ---- 
@@ -710,10 +773,27 @@ public class FigurePaisley extends MaxObject {
 	}
 
 	public void clearColor(float r, float g, float b) {
-		bgColor[0] = (float) r / 255.f;
-		bgColor[1] = (float) g / 255.f;
-		bgColor[2] = (float) b / 255.f;
-		bgColor[3] = 1.f;
+		if(debug) post("clearcolor() "+r+" "+g+" "+b);
+		if(bgFade) {
+			// set start color
+			bgColorFade1[0] = bgColor[0];
+			bgColorFade1[1] = bgColor[1];
+			bgColorFade1[2] = bgColor[2];
+			
+			bgFading = true;		// turn on fading, so its processed during draw()
+			bgFadeCounter = 0;
+		}
+		
+		// set goal color
+		bgColorFade2[0] = (float) r / 255.f;
+		bgColorFade2[1] = (float) g / 255.f;
+		bgColorFade2[2] = (float) b / 255.f;
+		
+		if(!bgFade) {
+			bgColor[0] = bgColorFade2[0];
+			bgColor[1] = bgColorFade2[1];
+			bgColor[2] = bgColorFade2[2];
+		}
 	}
 
 	public void fsaa(int v) {
@@ -727,15 +807,23 @@ public class FigurePaisley extends MaxObject {
 	
 	
 	/* === === === === === === === paisley === === === === === === === === */
+	
+	public void bgfade(int v) {
+		bgFade = (v==1) ? true : false;
+	}
+	
+	public void bgfadetime(int v) {
+		bgFadeTime = v;
+	}
 
-	/* set center position of rainbow */
+	/* set center position */
 	public void position(float x, float y, float z) {
 		pPos[0] = x;
 		pPos[1] = y;
 		pPos[2] = z;
 	}
 	
-	/* set main scale of rainbow */
+	/* set main scale */
 	public void size(float x, float y, float z) {
 		pSize[0] = x;
 		pSize[1] = y;
@@ -873,7 +961,8 @@ public class FigurePaisley extends MaxObject {
 				+(int) (bgColor[0]*255)+" "+(int) (bgColor[1]*255)+" "+(int) (bgColor[2]*255));
 		outlet(1,"script send gui_clearcolor1 bgcolor "+bgColor[0]+" "+bgColor[1]+
 				" "+bgColor[2] + " 1.");
-		
+		outlet(1,"script send gui_bgfade set " + (bgFade ? 1 : 0));
+		outlet(1,"script send gui_bgfadetime set "+ bgFadeTime);
 		
 	}
 	

@@ -26,8 +26,8 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 640;		
-	private int texture_height = 240;
+	private int texture_width = 2048; 		
+	private int texture_height = 768;
 		
 	// Bezier curve, rainbow backbone
 	private int rNum = 1;					// active number of rainbows
@@ -54,6 +54,7 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	private int randomMode = 0;				// random building mode
 	private boolean morphing = false;
 	private float slew = 0.15f;
+	private boolean equalSteps = true;
 	private float mp[][][];					// morph points
 	private float[] mStrokeWidth = {0.01f,0.01f,0.01f};
 	private float mPosition[] = {0,0,0};
@@ -681,18 +682,29 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		outlet(1,"script send gui_morphspeed set "+slew);
 		outlet(1,"script send gui_morph set "+ (morphing ? 1 : 0));
 		outlet(1,"script send gui_mode set "+randomMode);
+		outlet(1,"script send gui_equalsteps set "+(equalSteps ? 1 : 0));
 		
 		
-		outlet(1,"script send gui_rainbowcolor set rainbowcolor "
-				+(int) (rainbowColor[0][0]*255)+" "+(int) (rainbowColor[0][1]*255)+" "+(int) (rainbowColor[0][2]*255) + " "
-				+(int) (rainbowColor[1][0]*255)+" "+(int) (rainbowColor[1][1]*255)+" "+(int) (rainbowColor[1][2]*255) + " "
-				+(int) (rainbowColor[2][0]*255)+" "+(int) (rainbowColor[2][1]*255)+" "+(int) (rainbowColor[2][2]*255));
-		outlet(1,"script send gui_rainbowcolor1 bgcolor "+rainbowColor[0][0]+" "+rainbowColor[0][1]+
-				" "+rainbowColor[0][2] + " 1.");
-		outlet(1,"script send gui_rainbowcolor2 bgcolor "+rainbowColor[1][0]+" "+rainbowColor[1][1]+
-				" "+rainbowColor[1][2] + " 1.");
-		outlet(1,"script send gui_rainbowcolor3 bgcolor "+rainbowColor[2][0]+" "+rainbowColor[2][1]+
-				" "+rainbowColor[2][2] + " 1.");
+//		outlet(1,"script send gui_rainbowcolor set rainbowcolor "
+//				+(int) (rainbowColor[0][0]*255)+" "+(int) (rainbowColor[0][1]*255)+" "+(int) (rainbowColor[0][2]*255) + " "
+//				+(int) (rainbowColor[1][0]*255)+" "+(int) (rainbowColor[1][1]*255)+" "+(int) (rainbowColor[1][2]*255) + " "
+//				+(int) (rainbowColor[2][0]*255)+" "+(int) (rainbowColor[2][1]*255)+" "+(int) (rainbowColor[2][2]*255));
+//		outlet(1,"script send gui_rainbowcolor1 bgcolor "+rainbowColor[0][0]+" "+rainbowColor[0][1]+
+//				" "+rainbowColor[0][2] + " 1.");
+//		outlet(1,"script send gui_rainbowcolor2 bgcolor "+rainbowColor[1][0]+" "+rainbowColor[1][1]+
+//				" "+rainbowColor[1][2] + " 1.");
+//		outlet(1,"script send gui_rainbowcolor3 bgcolor "+rainbowColor[2][0]+" "+rainbowColor[2][1]+
+//				" "+rainbowColor[2][2] + " 1.");
+		
+		outlet(1,"script send gui_rainbowcolor1b "+(int) (rainbowColor[0][2]*255));
+		outlet(1,"script send gui_rainbowcolor1g "+(int) (rainbowColor[0][1]*255));
+		outlet(1,"script send gui_rainbowcolor1r "+(int) (rainbowColor[0][0]*255));
+		outlet(1,"script send gui_rainbowcolor2b "+(int) (rainbowColor[1][2]*255));
+		outlet(1,"script send gui_rainbowcolor2g "+(int) (rainbowColor[1][1]*255));
+		outlet(1,"script send gui_rainbowcolor2r "+(int) (rainbowColor[1][0]*255));
+		outlet(1,"script send gui_rainbowcolor3b "+(int) (rainbowColor[2][2]*255));
+		outlet(1,"script send gui_rainbowcolor3g "+(int) (rainbowColor[2][1]*255));
+		outlet(1,"script send gui_rainbowcolor3r "+(int) (rainbowColor[2][0]*255));
 		
 	}
 	
