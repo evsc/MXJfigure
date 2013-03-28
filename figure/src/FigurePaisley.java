@@ -26,7 +26,7 @@ public class FigurePaisley extends MaxObject {
 	private int texture_height = 768;
 	
 	
-	private float[] bgColor = { 0.7f, 0.7f, 0.7f, 1.f };
+	private float[] bgColor = { 0.f, 0.f, 0.f, 1.f };
 	private float[] bgColorFade1 = { 0,0,0,1 };
 	private float[] bgColorFade2 = { 1,1,1,1 };
 	private boolean bgFade = false;
@@ -38,7 +38,8 @@ public class FigurePaisley extends MaxObject {
 	private float[] pGrid = { 0.6f, 0.6f };
 	private float[] pPos = {0,0,0};	// center position
 	private float[] pSize = {2,2,2};		// size of the grid?? 
-	private float mirrorDistance = 0.5f;
+	private float mirrorDistance = 0.0f;
+	private int displayMode = 1; 			// grid ... 0, twin ... 1, one ... 2
 	
 	// 
 	private int pNumMax = 96;				// maximum number of paisley patterns
@@ -46,12 +47,16 @@ public class FigurePaisley extends MaxObject {
 	private int cols = 16;
 	
 	// pattern parameter
+	private float[] mainColor = { 1.f, 1.f, 1.f, 1.f };
 	private float[][] patternColor;	
 	private float[][][] masterPattern;		// the master pattern template, 
 											// every displayed pattern will be a slight variation of this one
 	
+	float[][][][] masterBezierOffset;		// hold calculated bezier points for easy drawing of master pattern
+	
 	private int eNum = 4;					// number of elements that constitute one paisley pattern
 	private int eNumMax = 5;
+	private boolean _mirrored = true;
 	private int[] eAnchor;					/* special anchoring of element 
 	 										*  0 = no effect
 	 										*  1 = keep first point fixed
@@ -74,10 +79,14 @@ public class FigurePaisley extends MaxObject {
 	// morphing
 	private boolean morphing = false;		//
 	private boolean animation = false;		// random noise changes every frame
+	private boolean precalc = true;
+	private int[] theActive = { 39, 56, 58, 70, 72 };
 	private boolean[] activated;			// which pattern is allowed to move
+	private boolean[] displayed;			// which pattern are displayed
 	private float noiseFactor = 1.f;		// how likely a noisevalue will be changed
 	private float returnFactor = 10.f;		// how likely the noisevalue will be set to 0
-	private float slew = 0.1f; 				// morphing speed
+	private float slew = 0.1f; 				// morphing speed (position, size, grid, ...)
+	private float animationSpeed = 0.1f;	// morphing speed of pattern morphing
 	private float[] mPos = { 0, 0, 0 };
 	private float[] mSize = { 2, 2, 2 };
 	private float[] mGrid = { 0.4f, 0.4f };
@@ -151,6 +160,7 @@ public class FigurePaisley extends MaxObject {
 		ePoints = new int[eNumMax];
 		eAnchor = new int[eNumMax];
 		activated = new boolean[pNumMax];
+		displayed = new boolean[pNumMax];
 		patternColor = new float[pNumMax][3];
 		
 		for(int e=0; e<eNumMax; e++ ) {
@@ -168,11 +178,15 @@ public class FigurePaisley extends MaxObject {
 				mWidthNoise[p][e] = 0.f;
 			}
 			activated[p] = false;
+			displayed[p] = true;
 			for(int c=0; c<3; c++) patternColor[p][c] = 1.f;
 		}
 		
+		for(int i=0; i<5; i++) activate(theActive[i],1);
+		
 		createMasterPaisley();
 		randomize(0.1f,0.f);
+		display(displayMode);
 	}
 
 
@@ -220,7 +234,10 @@ public class FigurePaisley extends MaxObject {
 		sketch.call("reset");
 		
 		sketch.call("glclearcolor",
-				new Atom[] { Atom.newAtom(bgColor[0]), Atom.newAtom(bgColor[1]), Atom.newAtom(bgColor[2]), Atom.newAtom(bgColor[3]) });
+				new Atom[] { 	Atom.newAtom(bgColor[0]), 
+								Atom.newAtom(bgColor[1]), 
+								Atom.newAtom(bgColor[2]), 
+								Atom.newAtom(bgColor[3]) });
 		sketch.call("glclear");
 		
 //		if(debug) post("line_smooth");
@@ -249,43 +266,7 @@ public class FigurePaisley extends MaxObject {
 		
 		
 		
-		
-		// - - - - - - - - - - - - - - - - - - - - - - -
-		
-//		int _i = 0;			// current item
-//		boolean goon = true;	// go on
-//		
-//		float ratio = (float) texture_width / (float) texture_height;
-//		float _x = (float) Math.floor(ratio / _grid[0]) * -_grid[0];
-//		float _y = (float) Math.floor(1.f / _grid[1]) * -_grid[1];
-//		float borderx = -_x;
-//		float bordery = -_y;
-//		int row = 0;
-//		float flip = 1.f;
-//		
-//		while(goon) {
-//
-//			drawPaisley(_i, _pos[0] + _x,_pos[1] + _y, _size[0], _size[1]*flip, _slices);
-//			
-//			
-//			// adapt the x and y values to the paisley grid
-//			// every second row the elements are positioned in between the top row grid
-//			_x+= _grid[0]*2;
-//			if(_x > borderx) {
-//				row++;
-//				_x = (row%2 == 0) ? -borderx : -borderx + _grid[0];
-//				flip = (row%2 ==0) ? 1f : -1f;
-//				_y += _grid[1];
-//				if(_y > bordery) {
-//					goon = false;
-//				}
-//			}
-//
-//			_i++;
-//			if(_i >= pNumMax) {
-//				goon = false;
-//			}
-//		}
+	
 		
 		
 		// new drawing loop, create 16x9 grid and only draw if item is within frame
@@ -294,19 +275,29 @@ public class FigurePaisley extends MaxObject {
 		float wratio = (float) texture_width / (float) texture_height;
 		float hratio = 1.f;
 		float flip = 1.f;
+		int count=0;
 		for(int r=0; r<rows; r++) {
 			for(int c=0; c<cols; c++) {
-				float _x = borderx + c * _grid[0];
-				_x += (r%2 == 0) ? _grid[0]/2.f : 0;	// each second is shifted to the right
-				float _y = bordery - r * _grid[1];
-				flip = (r%2 ==0) ? 1f : -1f;
-				if(_x >= -wratio && _x <= wratio && _y >= -hratio && _y <= hratio) {
-					drawPaisley(r*cols+c, _pos[0] + _x,_pos[1] + _y, _size[0], _size[1]*flip, _slices);
+				int id= r*cols +c;
+				if(displayed[id]) {
+					float _x = borderx + c * _grid[0];
+					_x += (r%2 == 0) ? _grid[0]/2.f : 0;	// each second is shifted to the right
+					float _y = bordery - r * _grid[1];
+					flip = (r%2 ==0) ? 1f : -1f;
+					if(_x >= -wratio && _x <= wratio && _y >= -hratio && _y <= hratio) {
+						count++;
+						if(displayMode==1) {
+							drawPaisley(id, _pos[0] + _x,_pos[1] + _y-_grid[1], _size[0], _size[1]*flip, activated[id] && precalc);	
+							drawPaisley(id, _pos[0] + _x,_pos[1] + _y, _size[0], _size[1]*flip*-1, activated[id] && precalc);	
+						} else {
+							drawPaisley(id, _pos[0] + _x,_pos[1] + _y, _size[0], _size[1]*flip, activated[id] && precalc);	
+						}
+					}
 				}
 			}
 		}
 		
-
+//		post("drawing "+count+" patterns");
 		
 //		if(debug) post("drawimmediate");
 		// call drawimmediate, to execute drawing of sketch object
@@ -389,7 +380,91 @@ public class FigurePaisley extends MaxObject {
 					} else {
 						masterPattern[en][b][1] = masterPattern[en][b][1] - 0.1f;
 					}
+					masterPattern[en][b][0] += 0.5f;
 				}
+			}
+		}
+		
+		
+		calculateMasterPattern();	
+		
+		
+	}
+	
+	// calculate bezier curves for master
+	public void calculateMasterPattern() {
+		
+		// global variable with resulting bezier points
+		masterBezierOffset = new float[eNumMax][bSlices+1][2][3];
+		
+		float[] firstpoint = new float[] {0,0,0};
+		float[] lastpoint = new float[] {0,0,0};
+		
+		float _add = 1.f / (float) (bSlices);			// defines segments of curve
+		
+		for(int e=0; e<eNum; e++) {
+			
+			float _empty[][] = new float[bNum][3];
+			float[][] masterDeviation = sumVector(masterPattern[e], _empty, ePoints[e]);
+			
+			
+			switch(eAnchor[e]) {
+			case 1: 	// first point is fixed, revert to masterpattern x/y
+				masterDeviation[0][0] = masterPattern[e][0][0];
+				masterDeviation[0][1] = masterPattern[e][0][1];
+				break;
+			case 2:		// first point is attached to startpoint of last element, all other points are relative
+				masterDeviation[0] = firstpoint;
+				for(int i=1; i<ePoints[e]; i++) {
+					masterDeviation[i][0]+=firstpoint[0];
+					masterDeviation[i][1]+=firstpoint[1];
+				}
+				break;
+			case 3: 	// first point is attached to endpoint of last element, all other points are relative
+				masterDeviation[0] = lastpoint;
+				for(int i=1; i<ePoints[e]; i++) {
+					masterDeviation[i][0]+=lastpoint[0];
+					masterDeviation[i][1]+=lastpoint[1];
+				}
+				break;
+			}
+			
+			firstpoint = masterDeviation[0];
+			lastpoint = (ePoints[e]==3) ? masterDeviation[0] : masterDeviation[ePoints[e]-1];
+
+
+			/* calculate all bezier points and their offset vectors beforehand */
+			float[][] bezierPoint = new float[bSlices+1][3];
+			float[][] offsetVector = new float[bSlices+1][3];
+
+			// calculate all points along the bezier curve
+			for(int _t=0; _t<=bSlices; _t++) {
+				float t = _t*_add;
+				bezierPoint[_t] = P(t, masterDeviation);	
+			}
+
+			// calculate vector perpendicular to the line connecting the previous and next bezier point
+			for(int _t=0; _t<=bSlices; _t++) {
+				if(_t==0) offsetVector[_t] = perpendicularVector(bezierPoint[_t],bezierPoint[_t+1]);
+				else if(_t==bSlices) offsetVector[_t] = perpendicularVector(bezierPoint[_t-1],bezierPoint[_t]);
+				else offsetVector[_t] = perpendicularVector(bezierPoint[_t-1],bezierPoint[_t+1]);
+			}
+
+			// calculate offsetPoints before drawing.
+			float _scw = masterWidth[e];
+
+			for(int _t=0; _t<=bSlices; _t++) {
+				float t = _t*_add;
+				_scw = restrict(halfCircle(t) * masterWidth[e],0.01f,100f);
+				float[] _offOutside = scaleVector(offsetVector[_t], _scw);
+				float[] _offInside = scaleVector(offsetVector[_t], -_scw);
+
+				masterBezierOffset[e][_t][0][0] = bezierPoint[_t][0] + _offOutside[0];
+				masterBezierOffset[e][_t][1][0] = bezierPoint[_t][0] + _offInside[0];
+				masterBezierOffset[e][_t][0][1] = bezierPoint[_t][1] + _offOutside[1];
+				masterBezierOffset[e][_t][1][1] = bezierPoint[_t][1] + _offInside[1];
+				masterBezierOffset[e][_t][0][2] = -0.5f;
+				masterBezierOffset[e][_t][1][2] = -0.5f;
 			}
 		}
 	}
@@ -402,11 +477,21 @@ public class FigurePaisley extends MaxObject {
 	}
 	
 	
-	/* initialize pattern bezier elements with random values */
+	public void clearNoise() {
+		randomizeElements(0,1,true);
+		randomizeWidth(0,1,true);
+	}
+	
 	public void randomizeElements(float f, float r) {
+		randomizeElements(f,r,false);
+	}
+	
+	/* initialize pattern bezier elements with random values */
+	public void randomizeElements(float f, float r, boolean all) {
+		
 		
 		for(int p=0; p<pNumMax; p++) {
-			if(activated[p]) {
+			if(activated[p] || all) {
 				for(int e=0; e<eNumMax; e++) {
 
 					// randomize bezier point noise
@@ -433,11 +518,13 @@ public class FigurePaisley extends MaxObject {
 		else return false;
 	}
 
-
-
 	public void randomizeWidth(float f, float r) {
+		randomizeWidth(f,r,false);
+	}
+
+	public void randomizeWidth(float f, float r, boolean all) {
 		for(int p=0; p<pNumMax; p++) {
-			if(activated[p]) {
+			if(activated[p] || all) {
 				for(int e=0; e<eNumMax; e++) {
 					// randomize width noise
 					if(dice(f)) widthNoise[p][e] = (float) Math.random()*2 - 1.f;
@@ -446,9 +533,54 @@ public class FigurePaisley extends MaxObject {
 			}
 		}
 	}
-
 	
-	public void drawPaisley(int _i, float _x, float _y, float _sx, float _sy, int _slices) {
+	
+	// function that draws already calculated pattern
+	public void drawPaisley(int _i, float _x, float _y, float _sx, float _sy, boolean calc){
+		
+		if(calc) renderDrawPaisley(_i, _x, _y, _sx, _sy);
+		else {
+			float _mirror = mMirrorDistance * _sx;
+
+			for(int e=0; e<eNum; e++) {
+
+				float _dir = 1;							// mirror x values in opposite direction
+				// mirror the bezier
+				for(int m=0; m<2; m++) {
+					if(m==0 || (m==1 && _mirrored)) {
+						if(m==1) _dir *= -1;
+
+						// --- - - - - - - - - --- - -draw BEZIER - - - -- - - -- - -- - -- -- -- - ---- 
+						sketch.call("glcolor", pColor());		// same color for all patterns
+
+						sketch.call("glbegin", "tri_strip");
+
+						for(int i=0; i<=bSlices; i++) {
+							// x + _mirror*_dir + bezierPoint[_t][0]*_sx*_dir + _offOutside[0]*_sx*_dir;
+							// y + bezierPoint[_t][1]*_sy + _offOutside[1]*_sy
+							float x1 = _x + _mirror*_dir + masterBezierOffset[e][i][0][0]*_sx*_dir;
+							float y1 = _y + masterBezierOffset[e][i][0][1]*_sy;
+							float z1 = 0;
+							float x2 = _x + _mirror*_dir + masterBezierOffset[e][i][1][0]*_sx*_dir;
+							float y2 = _y + masterBezierOffset[e][i][1][1]*_sy;
+							float z2 = 0;
+
+							sketch.call("glvertex", new Atom[]{	Atom.newAtom(x1), Atom.newAtom(y1), Atom.newAtom(z1)});
+							sketch.call("glvertex", new Atom[]{	Atom.newAtom(x2), Atom.newAtom(y2), Atom.newAtom(z2)});
+						}
+
+						sketch.call("glend");
+					}
+					// --- - - - - - - - - --- - - --end drawing -- - - -- - -- - -- -- -- - ---- -
+				}
+
+			}
+		}
+	}
+	
+	
+	// function that needs to renders bezier points
+	public void renderDrawPaisley(int _i, float _x, float _y, float _sx, float _sy) {
 		
 		// mWidthNoise
 		//mPatternNoise
@@ -460,13 +592,14 @@ public class FigurePaisley extends MaxObject {
 		for(int e=0; e<eNum; e++) {
 			for(int b=0; b<bNum; b++) {
 				for (int i = 0; i < 2; i++) {		// only need x and y values
-					mPatternNoise[_i][e][b][i] = (morphing) ? mPatternNoise[_i][e][b][i] += (patternNoise[_i][e][b][i] - mPatternNoise[_i][e][b][i]) * slew : patternNoise[_i][e][b][i];
+					mPatternNoise[_i][e][b][i] = (animation) ? mPatternNoise[_i][e][b][i] += (patternNoise[_i][e][b][i] - mPatternNoise[_i][e][b][i]) * animationSpeed : patternNoise[_i][e][b][i];
 					_pNoise[e][b][i] = mPatternNoise[_i][e][b][i];
 				}
 			}
-			mWidthNoise[_i][e] = (morphing) ? mWidthNoise[_i][e] += (widthNoise[_i][e] - mWidthNoise[_i][e]) * slew : widthNoise[_i][e];
+			mWidthNoise[_i][e] = (animation) ? mWidthNoise[_i][e] += (widthNoise[_i][e] - mWidthNoise[_i][e]) * animationSpeed : widthNoise[_i][e];
 			_wNoise[e] = mWidthNoise[_i][e];
 		}
+		
 		
 		float[] firstpoint = new float[] {0,0,0};
 		float[] lastpoint = new float[] {0,0,0};
@@ -475,7 +608,7 @@ public class FigurePaisley extends MaxObject {
 			// add noise to masterpattern bezier curve
 			float[][] masterDeviation = sumVector(masterPattern[e], scaleVector(_pNoise[e],bNoiseWeight), ePoints[e]);
 			
-			
+		
 			switch(eAnchor[e]) {
 			case 1: 	// first point is fixed, revert to masterpattern x/y
 				masterDeviation[0][0] = masterPattern[e][0][0];
@@ -501,14 +634,15 @@ public class FigurePaisley extends MaxObject {
 			lastpoint = (ePoints[e]==3) ? masterDeviation[0] : masterDeviation[ePoints[e]-1];
 			
 			// draw bezier curve
-			drawBezier(_i, _x, _y, masterDeviation, masterWidth[e] + _wNoise[e]*wNoiseWeight, _slices, _sx, _sy);
+			drawBezier(_i, _x, _y, masterDeviation, masterWidth[e] + _wNoise[e]*wNoiseWeight, _sx, _sy);
 		}
 	}
 	
 	
 	/* draw n-grade bezier with strokewidth that converges at endpoints */
-	public void drawBezier(int _i, float x, float y, float[][] points, float w, int slices, float _sx, float _sy) {
+	public void drawBezier(int _i, float x, float y, float[][] points, float w, float _sx, float _sy) {
 		
+		int slices = bSlices;
 		// TODO calculate slices based on curve length ?
 		float _add = 1.f / (float) (slices);			// defines segments of curve
 		
@@ -530,58 +664,63 @@ public class FigurePaisley extends MaxObject {
 			else offsetVector[_t] = perpendicularVector(bezierPoint[_t-1],bezierPoint[_t+1]);
 		}
 		
-		// calculate offsetPoints of bands before drawing.
+		// calculate offsetPoints before drawing.
 		float _scw = w;
 		float[][][] bezierOffset = new float[slices+1][2][3];	// hold offset points on both sides of curve
-		
-		
-		
-		
+
 		float _mirror = mMirrorDistance * _sx;
 		float _dir = 1;							// mirror x values in opposite direction
 		
 		// mirror the bezier
 		for(int m=0; m<2; m++) {
-			if(m==1) _dir *= -1;
-
-			for(int _t=0; _t<=slices; _t++) {
-				float t = _t*_add;
-				_scw = restrict(halfCircle(t) * w,0.01f,100f);
-				float[] _offOutside = scaleVector(offsetVector[_t], _scw);
-				float[] _offInside = scaleVector(offsetVector[_t], -_scw);
-
-				bezierOffset[_t][0][0] = x + _mirror*_dir + bezierPoint[_t][0]*_sx*_dir + _offOutside[0]*_sx*_dir;
-				bezierOffset[_t][1][0] = x + _mirror*_dir + bezierPoint[_t][0]*_sx*_dir + _offInside[0]*_sx*_dir;
-				bezierOffset[_t][0][1] = y + bezierPoint[_t][1]*_sy + _offOutside[1]*_sy;
-				bezierOffset[_t][1][1] = y + bezierPoint[_t][1]*_sy + _offInside[1]*_sy;
-				bezierOffset[_t][0][2] = -0.5f;
-				bezierOffset[_t][1][2] = -0.5f;
+			if(m==0 || (m==1 && _mirrored)) {
+				if(m==1) _dir *= -1;
+	
+				for(int _t=0; _t<=slices; _t++) {
+					float t = _t*_add;
+					_scw = restrict(halfCircle(t) * w,0.01f,100f);
+					float[] _offOutside = scaleVector(offsetVector[_t], _scw);
+					float[] _offInside = scaleVector(offsetVector[_t], -_scw);
+	
+					bezierOffset[_t][0][0] = x + _mirror*_dir + bezierPoint[_t][0]*_sx*_dir + _offOutside[0]*_sx*_dir;
+					bezierOffset[_t][1][0] = x + _mirror*_dir + bezierPoint[_t][0]*_sx*_dir + _offInside[0]*_sx*_dir;
+					bezierOffset[_t][0][1] = y + bezierPoint[_t][1]*_sy + _offOutside[1]*_sy;
+					bezierOffset[_t][1][1] = y + bezierPoint[_t][1]*_sy + _offInside[1]*_sy;
+					bezierOffset[_t][0][2] = -0.f;
+					bezierOffset[_t][1][2] = -0.f;
+				}
+	
+				// --- - - - - - - - - --- - -draw BEZIER - - - -- - - -- - -- - -- -- -- - ---- 
+	
+//				sketch.call("glcolor", pColor(_i));		// patterns individual color
+				sketch.call("glcolor", pColor());		// same color for all patterns
+	
+				sketch.call("glbegin", "tri_strip");
+	
+				for(int i=0; i<=slices; i++) {
+					sketch.call("glvertex", new Atom[]{	Atom.newAtom(bezierOffset[i][0][0]),
+							Atom.newAtom(bezierOffset[i][0][1]),
+							Atom.newAtom(bezierOffset[i][0][2])});
+					// if(i!=0 && i!=slices)  // don't draw the first and last point twice!
+					sketch.call("glvertex", new Atom[]{	Atom.newAtom(bezierOffset[i][1][0]),
+							Atom.newAtom(bezierOffset[i][1][1]),
+							Atom.newAtom(bezierOffset[i][1][2])});
+				}
+	
+				sketch.call("glend");
 			}
-
-			// --- - - - - - - - - --- - -draw BEZIER - - - -- - - -- - -- - -- -- -- - ---- 
-
-			sketch.call("glcolor", pColor(_i));
-
-			sketch.call("glbegin", "tri_strip");
-
-			for(int i=0; i<=slices; i++) {
-				sketch.call("glvertex", new Atom[]{	Atom.newAtom(bezierOffset[i][0][0]),
-						Atom.newAtom(bezierOffset[i][0][1]),
-						Atom.newAtom(bezierOffset[i][0][2])});
-				// if(i!=0 && i!=slices)  // don't draw the first and last point twice!
-				sketch.call("glvertex", new Atom[]{	Atom.newAtom(bezierOffset[i][1][0]),
-						Atom.newAtom(bezierOffset[i][1][1]),
-						Atom.newAtom(bezierOffset[i][1][2])});
-			}
-
-			sketch.call("glend");
-
 			// --- - - - - - - - - --- - - --end drawing -- - - -- - -- - -- -- -- - ---- -
 		}
 		
 	}
 	
-
+	private Atom[] pColor() {
+//		mainColor
+		return new Atom[]{
+				Atom.newAtom(mainColor[0]),
+				Atom.newAtom(mainColor[1]),
+				Atom.newAtom(mainColor[2])};
+	}
 
 
 	/* return color in atom format */
@@ -845,6 +984,23 @@ public class FigurePaisley extends MaxObject {
 		}
 	}
 	
+	public void activeFive(int no1, int no2, int no3, int no4, int no5) {
+		for(int p=0; p<pNumMax; p++) activated[p] = false;
+		theActive = new int[] { no1, no2, no3, no4, no5 };
+		for(int i=0; i<5; i++) activate(theActive[i],1);
+	}
+	
+	public void display(int v) {
+		displayMode = v;
+		_mirrored = (v==2) ? false : true;
+		if(displayMode==0) {
+			for(int p=0; p<pNumMax; p++) displayed[p] = true;
+		} else {
+			for(int p=0; p<pNumMax; p++) displayed[p] = false;
+			displayed[56] = true;
+		}
+	}
+	
 	/* toggle morphing */
 	public void morph(int v) {
 		morphing = (v == 1) ? true : false;
@@ -852,11 +1008,19 @@ public class FigurePaisley extends MaxObject {
 
 	/* set morphing speed */
 	public void morphspeed(float v) {
-		slew = (v > 0) ? v : 0.01f;
+		slew = (v > 0) ? v : 0.001f;
+	}
+	
+	public void animationspeed(float v) {
+		animationSpeed = (v > 0) ? v : 0.001f;
 	}
 	
 	public void animate(int v) {
 		animation = (v==1) ? true : false;
+	}
+	
+	public void calc(int v) {
+		precalc = (v==1) ? true : false;
 	}
 	
 	public void noisefactor(float v) {
@@ -877,11 +1041,13 @@ public class FigurePaisley extends MaxObject {
 		for(int e=0; e<eNumMax; e++ ) {
 			masterWidth[e] = v;
 		}
+		calculateMasterPattern();	// recalculate master pattern bezier points
 	}
 	
 	/* resolution of bezier curve */
 	public void slices(int v) {
 		bSlices = (v>2) ? v : 2;
+		calculateMasterPattern();	// recalculate master pattern bezier points
 	}
 	
 	public void mirrordistance(float v) {
@@ -908,6 +1074,16 @@ public class FigurePaisley extends MaxObject {
 		}
 	}
 	
+	public void maincolor(int r, int g, int b) {
+		mainColor[0] = (float) r / 255.f; 
+		mainColor[1] = (float) g / 255.f; 
+		mainColor[2] = (float) b / 255.f; 
+	}
+	
+	public void mirrored(int v) {
+		_mirrored = (v==1) ? true : false;
+	}
+	
 	
 	/* === === === === === === === GUI in max patch === === === === === === === === */
 	
@@ -932,12 +1108,13 @@ public class FigurePaisley extends MaxObject {
 		outlet(1,"script send gui_noisefactor set "+noiseFactor);
 		outlet(1,"script send gui_returnfactor set "+returnFactor);
 		outlet(1,"script send gui_morphspeed set "+slew);
+		outlet(1,"script send gui_animationspeed set "+animationSpeed);
 		outlet(1,"script send gui_morph set "+ (morphing ? 1 : 0));
 
 		outlet(1,"script send gui_size0 set "+pSize[0]);
-		outlet(1,"script send gui_sizex set "+pSize[0]);
-		outlet(1,"script send gui_sizey set "+pSize[1]);
-		outlet(1,"script send gui_sizez set "+pSize[2]);
+//		outlet(1,"script send gui_sizex set "+pSize[0]);
+//		outlet(1,"script send gui_sizey set "+pSize[1]);
+//		outlet(1,"script send gui_sizez set "+pSize[2]);
 		outlet(1, "script send gui_size set size " + pSize[0] + " " + pSize[1] + " " + pSize[2]);
 		outlet(1,"script send gui_positionx set "+pPos[0]);
 		outlet(1,"script send gui_positiony set "+pPos[1]);
@@ -963,6 +1140,12 @@ public class FigurePaisley extends MaxObject {
 				" "+bgColor[2] + " 1.");
 		outlet(1,"script send gui_bgfade set " + (bgFade ? 1 : 0));
 		outlet(1,"script send gui_bgfadetime set "+ bgFadeTime);
+		
+		outlet(1,"script send gui_mirrored set "+(_mirrored ? 1 : 0));
+		outlet(1,"script send gui_maincolor set maincolor "
+				+(int) (mainColor[0]*255)+" "+(int) (mainColor[1]*255)+" "+(int) (mainColor[2]*255));
+		outlet(1,"script send gui_maincolor1 bgcolor "+mainColor[0]+" "+mainColor[1]+
+				" "+mainColor[2] + " 1.");
 		
 	}
 	
