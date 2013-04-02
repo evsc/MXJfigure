@@ -22,8 +22,8 @@ public class FigurePaisley extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 2048; 		
-	private int texture_height = 768;
+	private int texture_width = 1600; 		
+	private int texture_height = 1200;
 	
 	
 	private float[] bgColor = { 0.f, 0.f, 0.f, 1.f };
@@ -36,10 +36,13 @@ public class FigurePaisley extends MaxObject {
 	
 	// grid
 	private float[] pGrid = { 0.6f, 0.6f };
-	private float[] pPos = {0,0,0};	// center position
-	private float[] pSize = {2,2,2};		// size of the grid?? 
+	private float[] pPos = {0,0,0};			// center position
+	private float[] pSize = {1,1,1};		// size of all (grid + pattern size)
+	private float[] pScale = {2,2,2};		// size of the pattern
 	private float mirrorDistance = 0.0f;
-	private int displayMode = 1; 			// grid ... 0, twin ... 1, one ... 2
+	private int displayMode = 0; 			// grid ... 0, twin ... 1, one ... 2
+	private boolean flipTwin = false;		// flip pattern of twin mode
+	private float cutOff = 0.f;				// lower part of grid that doesn't get displayed
 	
 	// 
 	private int pNumMax = 96;				// maximum number of paisley patterns
@@ -81,6 +84,10 @@ public class FigurePaisley extends MaxObject {
 	private boolean animation = false;		// random noise changes every frame
 	private boolean precalc = true;
 	private int[] theActive = { 39, 56, 58, 70, 72 };
+	private boolean animationQueue = false;	// only animate one after the other
+	private int animationQueuePointer = 0;	// which of the 5 patterns
+	private int animationQueueCounter = 0;
+	private int animationQueueTime = 20; 
 	private boolean[] activated;			// which pattern is allowed to move
 	private boolean[] displayed;			// which pattern are displayed
 	private float noiseFactor = 1.f;		// how likely a noisevalue will be changed
@@ -88,12 +95,16 @@ public class FigurePaisley extends MaxObject {
 	private float slew = 0.1f; 				// morphing speed (position, size, grid, ...)
 	private float animationSpeed = 0.1f;	// morphing speed of pattern morphing
 	private float[] mPos = { 0, 0, 0 };
-	private float[] mSize = { 2, 2, 2 };
+	private float[] mSize = { 1, 1, 2 };
+	private float[] mScale = { 2, 2, 2 };
 	private float[] mGrid = { 0.4f, 0.4f };
 	private float mMirrorDistance = 0.1f;
-	private float sizeMult = 0.1f;			// scale down size, as 100% would cover whole screen
+	private float scaleMult = 0.1f;			// scale down size, as 100% would cover whole screen
 	private float[][][][] mPatternNoise;	// morphing the noise deviation
 	private float[][] mWidthNoise;			// morphing noise width deviation
+	private float[] mMasterWidth;			
+	private float mBNoiseWeight = 0.05f;
+	private float mWNoiseWeight = 0.1f;
 	
 	
 	// display parameters
@@ -155,6 +166,7 @@ public class FigurePaisley extends MaxObject {
 		patternNoise = new float[pNumMax][eNumMax][bNum][3];
 		mPatternNoise = new float[pNumMax][eNumMax][bNum][3];
 		masterWidth = new float[eNumMax];
+		mMasterWidth = new float[eNumMax];
 		widthNoise = new float[pNumMax][eNumMax];
 		mWidthNoise = new float[pNumMax][eNumMax];
 		ePoints = new int[eNumMax];
@@ -165,6 +177,7 @@ public class FigurePaisley extends MaxObject {
 		
 		for(int e=0; e<eNumMax; e++ ) {
 			masterWidth[e] = 0.05f;
+			mMasterWidth[e] = 0.05f;
 			ePoints[e] = bNum;
 			eAnchor[e] = 0;
 			for(int b=0; b<bNum; b++) {
@@ -247,13 +260,16 @@ public class FigurePaisley extends MaxObject {
 		// create local variables, to avoid conflict when life-updating
 		// variables while rendering
 		
-		float _size[] = new float[2];		// scale from origin
+		float _size[] = new float[2];		// size from origin
+		float _scale[] = new float[2];
 		float _pos[] = new float[2];		// origin position
 		float _grid[] = new float[2];
 		
 		for (int i = 0; i < 2; i++) {		// only need x and y values
 			mSize[i] = (morphing) ? mSize[i] += (pSize[i] - mSize[i]) * slew : pSize[i];
-			_size[i] = mSize[i] * sizeMult;
+			_size[i] = mSize[i];
+			mScale[i] = (morphing) ? mScale[i] += (pScale[i] - mScale[i]) * slew : pScale[i];
+			_scale[i] = mScale[i] * scaleMult;
 			mPos[i] = (morphing) ? mPos[i] += (pPos[i] - mPos[i]) * slew : pPos[i];
 			_pos[i] = mPos[i];
 			mGrid[i] = (morphing) ? mGrid[i] += (pGrid[i] - mGrid[i]) * slew : pGrid[i];
@@ -272,10 +288,10 @@ public class FigurePaisley extends MaxObject {
 		// new drawing loop, create 16x9 grid and only draw if item is within frame
 		float borderx = -_grid[0] * cols/2.f;
 		float bordery = _grid[1] * rows/2.f;
-		float wratio = (float) texture_width / (float) texture_height;
-		float hratio = 1.f;
+		float wratio = 0.1f + (float) texture_width / (float) texture_height;
+		float hratio = 0.1f + 1.f;		// add 0.1f to avoid on/off flickr on edges
 		float flip = 1.f;
-		int count=0;
+		int count=0;					// to calculate how many patterns are actually displayed
 		for(int r=0; r<rows; r++) {
 			for(int c=0; c<cols; c++) {
 				int id= r*cols +c;
@@ -284,13 +300,17 @@ public class FigurePaisley extends MaxObject {
 					_x += (r%2 == 0) ? _grid[0]/2.f : 0;	// each second is shifted to the right
 					float _y = bordery - r * _grid[1];
 					flip = (r%2 ==0) ? 1f : -1f;
-					if(_x >= -wratio && _x <= wratio && _y >= -hratio && _y <= hratio) {
+					_x *= _size[0];
+					_y *= _size[1];
+					if(_x >= -wratio && _x <= wratio && _y >= -hratio+cutOff*2 && _y <= hratio) {
 						count++;
 						if(displayMode==1) {
-							drawPaisley(id, _pos[0] + _x,_pos[1] + _y-_grid[1], _size[0], _size[1]*flip, activated[id] && precalc);	
-							drawPaisley(id, _pos[0] + _x,_pos[1] + _y, _size[0], _size[1]*flip*-1, activated[id] && precalc);	
+							// twin
+							flip *= flipTwin ? -1.f : 1.f;
+							drawPaisley(id, (_pos[0] + _x),(_pos[1] + _y-_grid[1]*_size[1]), _scale[0]*_size[0], _scale[1]*flip*_size[1], activated[id] && precalc);	
+							drawPaisley(id, (_pos[0] + _x),(_pos[1] + _y), _scale[0]*_size[0], _scale[1]*flip*-1*_size[1], activated[id] && precalc);	
 						} else {
-							drawPaisley(id, _pos[0] + _x,_pos[1] + _y, _size[0], _size[1]*flip, activated[id] && precalc);	
+							drawPaisley(id, (_pos[0] + _x),(_pos[1] + _y), _scale[0]*_size[0], _scale[1]*flip*_size[1], activated[id] && precalc);	
 						}
 					}
 				}
@@ -472,6 +492,16 @@ public class FigurePaisley extends MaxObject {
 	
 	/* randomize bezier curves and widths */
 	public void randomize(float f, float r) {
+		if(animationQueue) {
+			animationQueueCounter++;
+			if(animationQueueCounter > animationQueueTime) {
+				animationQueueCounter = 0;
+				animationQueuePointer++;
+				if(animationQueuePointer>4) {
+					animationQueuePointer = 0;
+				}
+			}
+		}
 		randomizeElements(f,r);
 		randomizeWidth(f,r);
 	}
@@ -492,17 +522,21 @@ public class FigurePaisley extends MaxObject {
 		
 		for(int p=0; p<pNumMax; p++) {
 			if(activated[p] || all) {
-				for(int e=0; e<eNumMax; e++) {
+				if(all || !animationQueue || (animationQueue && p==theActive[animationQueuePointer])) {
+//					post("p "+p+"   animationQueue "+animationQueue+"  animationQueuePointer "+animationQueuePointer+
+//							"   theActive[animationQueuePointer]) "+theActive[animationQueuePointer]);			
+					for(int e=0; e<eNumMax; e++) {
 
-					// randomize bezier point noise
-					for(int b=0; b<bNum; b++) {
-						// set noise to 0 if element is not active (<eNum)
-						if(dice(f)) patternNoise[p][e][b][0] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
-						else if(dice(r)) patternNoise[p][e][b][0] = 0.f;
-						if(dice(f)) patternNoise[p][e][b][1] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
-						else if(dice(r)) patternNoise[p][e][b][1] = 0.f;
-						if(dice(f)) patternNoise[p][e][b][2] = 0.f;
-						else if(dice(r)) patternNoise[p][e][b][2] = 0.f;
+						// randomize bezier point noise
+						for(int b=0; b<bNum; b++) {
+							// set noise to 0 if element is not active (<eNum)
+							if(dice(f)) patternNoise[p][e][b][0] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
+							else if(dice(r)) patternNoise[p][e][b][0] = 0.f;
+							if(dice(f)) patternNoise[p][e][b][1] = (e<eNum) ? (float) Math.random()*2 - 1.f : 0.f;
+							else if(dice(r)) patternNoise[p][e][b][1] = 0.f;
+							if(dice(f)) patternNoise[p][e][b][2] = 0.f;
+							else if(dice(r)) patternNoise[p][e][b][2] = 0.f;
+						}
 					}
 				}
 			}
@@ -525,10 +559,12 @@ public class FigurePaisley extends MaxObject {
 	public void randomizeWidth(float f, float r, boolean all) {
 		for(int p=0; p<pNumMax; p++) {
 			if(activated[p] || all) {
-				for(int e=0; e<eNumMax; e++) {
-					// randomize width noise
-					if(dice(f)) widthNoise[p][e] = (float) Math.random()*2 - 1.f;
-					else if(dice(r)) widthNoise[p][e] = 0.f;
+				if(all || !animationQueue || (animationQueue && p==theActive[animationQueuePointer])) {
+					for(int e=0; e<eNumMax; e++) {
+						// randomize width noise
+						if(dice(f)) widthNoise[p][e] = (float) Math.random()*2 - 1.f;
+						else if(dice(r)) widthNoise[p][e] = 0.f;
+					}
 				}
 			}
 		}
@@ -592,22 +628,27 @@ public class FigurePaisley extends MaxObject {
 		for(int e=0; e<eNum; e++) {
 			for(int b=0; b<bNum; b++) {
 				for (int i = 0; i < 2; i++) {		// only need x and y values
-					mPatternNoise[_i][e][b][i] = (animation) ? mPatternNoise[_i][e][b][i] += (patternNoise[_i][e][b][i] - mPatternNoise[_i][e][b][i]) * animationSpeed : patternNoise[_i][e][b][i];
+					if(animation) mPatternNoise[_i][e][b][i] += (patternNoise[_i][e][b][i] - mPatternNoise[_i][e][b][i]) * animationSpeed;
 					_pNoise[e][b][i] = mPatternNoise[_i][e][b][i];
 				}
 			}
-			mWidthNoise[_i][e] = (animation) ? mWidthNoise[_i][e] += (widthNoise[_i][e] - mWidthNoise[_i][e]) * animationSpeed : widthNoise[_i][e];
+			if(animation) mWidthNoise[_i][e] += (widthNoise[_i][e] - mWidthNoise[_i][e]) * animationSpeed;
 			_wNoise[e] = mWidthNoise[_i][e];
 		}
 		
+		
+		mWNoiseWeight = (morphing) ? mWNoiseWeight += (wNoiseWeight-mWNoiseWeight) * slew : wNoiseWeight;
+		mBNoiseWeight = (morphing) ? mBNoiseWeight += (bNoiseWeight-mBNoiseWeight) * slew : bNoiseWeight;
 		
 		float[] firstpoint = new float[] {0,0,0};
 		float[] lastpoint = new float[] {0,0,0};
 		
 		for(int e=0; e<eNum; e++) {
 			// add noise to masterpattern bezier curve
-			float[][] masterDeviation = sumVector(masterPattern[e], scaleVector(_pNoise[e],bNoiseWeight), ePoints[e]);
+			float[][] masterDeviation = sumVector(masterPattern[e], scaleVector(_pNoise[e],mBNoiseWeight), ePoints[e]);
 			
+			mMasterWidth[e] = (morphing) ? mMasterWidth[e] += (masterWidth[e] - mMasterWidth[e]) * slew : masterWidth[e];
+			float _mw = mMasterWidth[e];
 		
 			switch(eAnchor[e]) {
 			case 1: 	// first point is fixed, revert to masterpattern x/y
@@ -634,7 +675,7 @@ public class FigurePaisley extends MaxObject {
 			lastpoint = (ePoints[e]==3) ? masterDeviation[0] : masterDeviation[ePoints[e]-1];
 			
 			// draw bezier curve
-			drawBezier(_i, _x, _y, masterDeviation, masterWidth[e] + _wNoise[e]*wNoiseWeight, _sx, _sy);
+			drawBezier(_i, _x, _y, masterDeviation, _mw + _wNoise[e]*mWNoiseWeight, _sx, _sy);
 		}
 	}
 	
@@ -969,6 +1010,12 @@ public class FigurePaisley extends MaxObject {
 		pSize[2] = z;
 	}
 	
+	public void scale(float x, float y, float z) {
+		pScale[0] = x;
+		pScale[1] = y;
+		pScale[2] = z;
+	}
+	
 	public void grid(float x, float y) {
 		pGrid[0] = x;
 		pGrid[1] = y;
@@ -1084,6 +1131,21 @@ public class FigurePaisley extends MaxObject {
 		_mirrored = (v==1) ? true : false;
 	}
 	
+	public void animationqueue(int v) {
+		animationQueue = (v==1) ? true : false;
+	}
+	
+	public void queuetime(int v) {
+		animationQueueTime = v;
+	}
+	
+	public void cutoff(float v) {
+		cutOff = v;
+	}
+	
+	public void fliptwin(int v) {
+		flipTwin = (v==1) ? true : false;
+	}
 	
 	/* === === === === === === === GUI in max patch === === === === === === === === */
 	
@@ -1146,6 +1208,17 @@ public class FigurePaisley extends MaxObject {
 				+(int) (mainColor[0]*255)+" "+(int) (mainColor[1]*255)+" "+(int) (mainColor[2]*255));
 		outlet(1,"script send gui_maincolor1 bgcolor "+mainColor[0]+" "+mainColor[1]+
 				" "+mainColor[2] + " 1.");
+		
+		outlet(1,"script send gui_queuetime set "+animationQueueTime);
+		outlet(1,"script send gui_animationqueue set "+(animationQueue? 1: 0));
+		
+		outlet(1,"script send gui_active1 set "+theActive[0]);
+		outlet(1,"script send gui_active2 set "+theActive[1]);
+		outlet(1,"script send gui_active3 set "+theActive[2]);
+		outlet(1,"script send gui_active4 set "+theActive[3]);
+		outlet(1,"script send gui_active5 set "+theActive[4]);
+		
+		outlet(1,"script send gui_cutoff set "+cutOff);
 		
 	}
 	

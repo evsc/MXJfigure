@@ -21,8 +21,8 @@ public class FigureAuroraMulti extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 2048; 		
-	private int texture_height = 768;
+	private int texture_width = 1600; 		
+	private int texture_height = 1200;
 
 	// Bezier curve, aurora backbone
 	private int aMode = 0;					// for default aurora settings
@@ -46,7 +46,9 @@ public class FigureAuroraMulti extends MaxObject {
 	private boolean rayColorByHeight = true;
 	private float rayColorOffset[];			// 
 	private float rayColorMult[];			//
-	
+	private boolean multiply = false;		// multiply and randomize rays
+	private int multiplyNo = 10;			
+	private float multiplyNoise = 0.01f;
 
 	// noise - main noise field
 	private int noiseCount[];				// resolution of noise fields
@@ -276,18 +278,25 @@ public class FigureAuroraMulti extends MaxObject {
 				float[] _n1 = { _nx1, _ny1, _nz1 };
 				float[] _n2 = (_vp[1] > 0) ? vectorTowards(_n1, _vp, _rh* _size[1]) : vectorTowards(_n1, _vp, -_rh * _size[1]);
 				
-				
-				// split ray into several segments, to be able to apply color
-				for (int seg = 0; seg <= _rs; seg++) {
-					float _segx = _n1[0] + seg * (_n2[0] - _n1[0]) * (1.f / (float) _rs);
-					float _segy = _n1[1] + seg * (_n2[1] - _n1[1]) * (1.f / (float) _rs);
-					float _segz = _n1[2] + seg * (_n2[2] - _n1[2]) * (1.f / (float) _rs);
+				int multiMax = (multiply) ? multiplyNo : 1;
+				for(int m=0; m<multiMax; m++) {
+					// split ray into several segments, to be able to apply color
+					float multiNoise = (m==0) ? 0 : multiplyNoise;
+					float multiNoiseX = multiNoise * ((float) Math.random()*2 - 1);
+					float multiNoiseY = multiNoise* ((float) Math.random()*2 - 1);
+					float multiNoiseZ = multiNoise * ((float) Math.random()*2 - 1);
 					
-					// set next color based on height / or not
-					Atom[] _segc = (rayColorByHeight) ? auroraColor((_segy - _rco - _pos[1]) * _rcm) : auroraColor(seg / (float) _rs);
-					sketch.call("glcolor", _segc);
-					
-					sketch.call("glvertex", new Atom[] { Atom.newAtom(_segx), Atom.newAtom(_segy), Atom.newAtom(_segz) });
+					for (int seg = 0; seg <= _rs; seg++) {
+						float _segx = _n1[0] + seg * (_n2[0] - _n1[0]) * (1.f / (float) _rs) + multiNoiseX;
+						float _segy = _n1[1] + seg * (_n2[1] - _n1[1]) * (1.f / (float) _rs) + multiNoiseY;
+						float _segz = _n1[2] + seg * (_n2[2] - _n1[2]) * (1.f / (float) _rs) + multiNoiseZ;
+
+						// set next color based on height / or not
+						Atom[] _segc = (rayColorByHeight) ? auroraColor((_segy - _rco - _pos[1]) * _rcm) : auroraColor(seg / (float) _rs);
+						sketch.call("glcolor", _segc);
+
+						sketch.call("glvertex", new Atom[] { Atom.newAtom(_segx), Atom.newAtom(_segy), Atom.newAtom(_segz) });
+					}
 				}
 
 				sketch.call("glend");
@@ -842,6 +851,10 @@ public class FigureAuroraMulti extends MaxObject {
 		setBezierPoints();
 	}
 	
+	public void multiple(int v) {
+		multiply = (v==1) ? true : false;
+	}
+	
 	
 	/* === === === === === === === GUI in max patch === === === === === === === === */
 	
@@ -862,9 +875,9 @@ public class FigureAuroraMulti extends MaxObject {
 		outlet(1,"script send gui_blendmode2 set "+sketchBlendMode2);
 		
 		// aurora
-		outlet(1,"script send gui_sizex set "+aSize[0]);
-		outlet(1,"script send gui_sizey set "+aSize[1]);
-		outlet(1,"script send gui_sizez set "+aSize[2]);
+		outlet(1,"script send gui_size0 set "+aSize[0]);
+//		outlet(1,"script send gui_sizey set "+aSize[1]);
+//		outlet(1,"script send gui_sizez set "+aSize[2]);
 		outlet(1,"script send gui_positionx set "+aPos[0]);
 		outlet(1,"script send gui_positiony set "+aPos[1]);
 		outlet(1,"script send gui_positionz set "+aPos[2]);

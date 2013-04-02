@@ -26,14 +26,14 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	// jitter objects
 	JitterObject sketch;
 	JitterObject texture;
-	private int texture_width = 2048; 		
-	private int texture_height = 768;
+	private int texture_width = 1600; 		
+	private int texture_height = 1200;
 		
 	// Bezier curve, rainbow backbone
 	private int rNum = 1;					// active number of rainbows
 	private int rNumMax = 3;				// maximum number of rainbows
 	private int pointCount = 4;
-	private float bp[][][];					// bezier points
+	private float bezierPoints[][][];					// bezier points
 	private float rHeight[];				// height of rainbow arch	
 	private int bSlices = 20;				// bezier slices
 	
@@ -54,14 +54,20 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	private int randomMode = 0;				// random building mode
 	private boolean morphing = false;
 	private float slew = 0.15f;
-	private boolean equalSteps = true;
-	private float mp[][][];					// morph points
+	private boolean equalSteps = false;
+	private float equalStepCount = 0;
+	private float morphPoints[][][];					// morph points (in between)
+	private float originalPoints[][][];					// original points for equalsteps morph
 	private float[] mStrokeWidth = {0.01f,0.01f,0.01f};
 	private float mPosition[] = {0,0,0};
 	private float mSize[] = {1,1,1};
 	private float mWidth[] = { 0.2f,0.2f,0.2f};
 	private float[] mBands = {7,7,7};
-
+	
+	private float pointVel[][][];			// velocity
+	private float pointAcc[][][];			// acceleration
+	private float dt = 0.01f;				// derivative, for adding acc and vel
+	private float goalFollow = 0.01f;
 	
 	// display parameters
 	private int lineSmooth = 0;
@@ -113,14 +119,23 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		
 		// set arrays to max number of pointcount
 		int m = pointCount;
-		bp = new float[rNumMax][m][3];
-		mp = new float[rNumMax][m][3];
+		bezierPoints = new float[rNumMax][m][3];
+		morphPoints = new float[rNumMax][m][3];
+		originalPoints = new float[rNumMax][m][3];
 		rHeight = new float[m];
+		
+		pointVel = new float[rNumMax][m][3];
+		pointAcc = new float[rNumMax][m][3];
 		
 		for(int i=0; i<rNumMax; i++) {
 			rHeight[i] = 1.f;
 			for(int j=0; j<pointCount; j++) {
-				for(int k=0; k<3; k++) bp[i][j][k] = 0.f;
+				for(int k=0; k<3; k++) {
+					bezierPoints[i][j][k] = 0.f;
+					originalPoints[i][j][k] = 0.f;
+					pointVel[i][j][k] = 0.f;
+					pointAcc[i][j][k] = 0.f;
+				}
 			}
 		}
 		
@@ -140,11 +155,12 @@ public class FigureRainbowBezierTriple extends MaxObject {
 			for(int r=0; r<rNumMax; r++) {
 				for(int i=0; i<pointCount; i++) {
 					for(int x=0; x<3; x++) {
-						bp[r][i][x] = (float) Math.random()*2-1.f;
-
+						originalPoints[r][i][x] = morphPoints[r][i][x];
+						bezierPoints[r][i][x] = (float) Math.random()*2-1.f;
 					}
 				}
 			}
+			equalStepCount = 0;
 		} else {
 			pA(-2.f,0,-3,-2.1f,0,-3,-1.9f,0.f,-3);
 			pB(0.3f,-0.5f,0.4f,-0.2f,-0.3f,1.1f,0.5f,-0.2f,0.7f);
@@ -154,13 +170,13 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	private void setBezierPoints() {
 		for(int r=0; r<rNumMax; r++) {
-			bp[r][1][0] = bp[r][0][0];
-			bp[r][1][1] = bp[r][0][1] + rHeight[r];
-			bp[r][1][2] = bp[r][0][2];
+			bezierPoints[r][1][0] = bezierPoints[r][0][0];
+			bezierPoints[r][1][1] = bezierPoints[r][0][1] + rHeight[r];
+			bezierPoints[r][1][2] = bezierPoints[r][0][2];
 			
-			bp[r][2][0] = bp[r][3][0];
-			bp[r][2][1] = bp[r][3][1] + rHeight[r];
-			bp[r][2][2] = bp[r][3][2];
+			bezierPoints[r][2][0] = bezierPoints[r][3][0];
+			bezierPoints[r][2][1] = bezierPoints[r][3][1] + rHeight[r];
+			bezierPoints[r][2][2] = bezierPoints[r][3][2];
 		}
 	}
 	
@@ -194,12 +210,21 @@ public class FigureRainbowBezierTriple extends MaxObject {
 
 			// if morphing, use mx[] as morphed values while px[] represents goal of morphing
 			for(int i=0; i<pointCount; i++) {
-				mp[r][i][0] = (morphing) ? mp[r][i][0] += (bp[r][i][0]-mp[r][i][0])*slew : bp[r][i][0];
-				mp[r][i][1] = (morphing) ? mp[r][i][1] += (bp[r][i][1]-mp[r][i][1])*slew : bp[r][i][1];
-				mp[r][i][2] = (morphing) ? mp[r][i][2] += (bp[r][i][2]-mp[r][i][2])*slew : bp[r][i][2];
-				_bp[r][i][0] = mp[r][i][0];
-				_bp[r][i][1] = mp[r][i][1];
-				_bp[r][i][2] = mp[r][i][2];
+				if(equalSteps) {
+					if(equalStepCount < 1) {
+						morphPoints[r][i][0] = (morphing) ? originalPoints[r][i][0] + (bezierPoints[r][i][0]-originalPoints[r][i][0])*equalStepCount : bezierPoints[r][i][0];
+						morphPoints[r][i][1] = (morphing) ? originalPoints[r][i][1] + (bezierPoints[r][i][1]-originalPoints[r][i][1])*equalStepCount : bezierPoints[r][i][1];
+						morphPoints[r][i][2] = (morphing) ? originalPoints[r][i][2] + (bezierPoints[r][i][2]-originalPoints[r][i][2])*equalStepCount : bezierPoints[r][i][2];
+						equalStepCount += slew*0.1;
+					}
+				} else {
+					morphPoints[r][i][0] = (morphing) ? morphPoints[r][i][0] += (bezierPoints[r][i][0]-morphPoints[r][i][0])*slew : bezierPoints[r][i][0];
+					morphPoints[r][i][1] = (morphing) ? morphPoints[r][i][1] += (bezierPoints[r][i][1]-morphPoints[r][i][1])*slew : bezierPoints[r][i][1];
+					morphPoints[r][i][2] = (morphing) ? morphPoints[r][i][2] += (bezierPoints[r][i][2]-morphPoints[r][i][2])*slew : bezierPoints[r][i][2];
+				}
+				_bp[r][i][0] = morphPoints[r][i][0];
+				_bp[r][i][1] = morphPoints[r][i][1];
+				_bp[r][i][2] = morphPoints[r][i][2];
 			}
 
 			// more local variables
@@ -505,15 +530,15 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	/* set the start points of the rainbow arches */
 	public void pA(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3) {
-		bp[0][0][0] = x1;
-		bp[0][0][1] = y1;
-		bp[0][0][2] = z1;
-		bp[1][0][0] = x2;
-		bp[1][0][1] = y2;
-		bp[1][0][2] = z2;
-		bp[2][0][0] = x3;
-		bp[2][0][1] = y3;
-		bp[2][0][2] = z3;
+		bezierPoints[0][0][0] = x1;
+		bezierPoints[0][0][1] = y1;
+		bezierPoints[0][0][2] = z1;
+		bezierPoints[1][0][0] = x2;
+		bezierPoints[1][0][1] = y2;
+		bezierPoints[1][0][2] = z2;
+		bezierPoints[2][0][0] = x3;
+		bezierPoints[2][0][1] = y3;
+		bezierPoints[2][0][2] = z3;
 		setBezierPoints();
 	}
 
@@ -524,15 +549,15 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	
 	/* set the end points of the rainbow arches */
 	public void pB(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3) {
-		bp[0][pointCount - 1][0] = x1;
-		bp[0][pointCount - 1][1] = y1;
-		bp[0][pointCount - 1][2] = z1;
-		bp[1][pointCount - 1][0] = x2;
-		bp[1][pointCount - 1][1] = y2;
-		bp[1][pointCount - 1][2] = z2;
-		bp[2][pointCount - 1][0] = x3;
-		bp[2][pointCount - 1][1] = y3;
-		bp[2][pointCount - 1][2] = z3;
+		bezierPoints[0][pointCount - 1][0] = x1;
+		bezierPoints[0][pointCount - 1][1] = y1;
+		bezierPoints[0][pointCount - 1][2] = z1;
+		bezierPoints[1][pointCount - 1][0] = x2;
+		bezierPoints[1][pointCount - 1][1] = y2;
+		bezierPoints[1][pointCount - 1][2] = z2;
+		bezierPoints[2][pointCount - 1][0] = x3;
+		bezierPoints[2][pointCount - 1][1] = y3;
+		bezierPoints[2][pointCount - 1][2] = z3;
 		setBezierPoints();
 	}
 	
@@ -623,6 +648,10 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		rainbowColor[2][2] = (float) b3/255.f; 
 	}
 	
+	public void equalsteps (int v) {
+		equalSteps = (v==1) ? true : false;
+	}
+	
 	
 	
 	/* === === === === === === === GUI in max patch === === === === === === === === */
@@ -645,9 +674,9 @@ public class FigureRainbowBezierTriple extends MaxObject {
 		
 		// rainbow
 		outlet(1,"script send gui_colormode set "+colorMode);
-		outlet(1,"script send gui_sizex set "+rSize[0]);
-		outlet(1,"script send gui_sizey set "+rSize[1]);
-		outlet(1,"script send gui_sizez set "+rSize[2]);
+		outlet(1,"script send gui_size0 set "+rSize[0]);
+//		outlet(1,"script send gui_sizey set "+rSize[1]);
+//		outlet(1,"script send gui_sizez set "+rSize[2]);
 		outlet(1,"script send gui_positionx set "+rPosition[0]);
 		outlet(1,"script send gui_positiony set "+rPosition[1]);
 		outlet(1,"script send gui_positionz set "+rPosition[2]);
@@ -709,36 +738,36 @@ public class FigureRainbowBezierTriple extends MaxObject {
 	}
 	
 	private void outputBezierVariables() {
-		outlet(1,"script send gui_pa1x set "+bp[0][0][0]);
-		outlet(1,"script send gui_pa1y set "+bp[0][0][1]);
-		outlet(1,"script send gui_pa1z set "+bp[0][0][2]);
-		outlet(1,"script send gui_pa2x set "+bp[1][0][0]);
-		outlet(1,"script send gui_pa2y set "+bp[1][0][1]);
-		outlet(1,"script send gui_pa2z set "+bp[1][0][2]);
-		outlet(1,"script send gui_pa3x set "+bp[2][0][0]);
-		outlet(1,"script send gui_pa3y set "+bp[2][0][1]);
-		outlet(1,"script send gui_pa3z set "+bp[2][0][2]);
+		outlet(1,"script send gui_pa1x set "+bezierPoints[0][0][0]);
+		outlet(1,"script send gui_pa1y set "+bezierPoints[0][0][1]);
+		outlet(1,"script send gui_pa1z set "+bezierPoints[0][0][2]);
+		outlet(1,"script send gui_pa2x set "+bezierPoints[1][0][0]);
+		outlet(1,"script send gui_pa2y set "+bezierPoints[1][0][1]);
+		outlet(1,"script send gui_pa2z set "+bezierPoints[1][0][2]);
+		outlet(1,"script send gui_pa3x set "+bezierPoints[2][0][0]);
+		outlet(1,"script send gui_pa3y set "+bezierPoints[2][0][1]);
+		outlet(1,"script send gui_pa3z set "+bezierPoints[2][0][2]);
 		
 		outlet(1,"script send gui_pa set pA "
-				+bp[0][0][0]+" "+bp[0][0][1]+" "+bp[0][0][2]+" "
-				+bp[1][0][0]+" "+bp[1][0][1]+" "+bp[1][0][2]+" "
-				+bp[2][0][0]+" "+bp[2][0][1]+" "+bp[2][0][2]+" ");
+				+bezierPoints[0][0][0]+" "+bezierPoints[0][0][1]+" "+bezierPoints[0][0][2]+" "
+				+bezierPoints[1][0][0]+" "+bezierPoints[1][0][1]+" "+bezierPoints[1][0][2]+" "
+				+bezierPoints[2][0][0]+" "+bezierPoints[2][0][1]+" "+bezierPoints[2][0][2]+" ");
 		
 		
-		outlet(1,"script send gui_pb1x set "+bp[0][pointCount - 1][0]);
-		outlet(1,"script send gui_pb1y set "+bp[0][pointCount - 1][1]);
-		outlet(1,"script send gui_pb1z set "+bp[0][pointCount - 1][2]);
-		outlet(1,"script send gui_pb2x set "+bp[1][pointCount - 1][0]);
-		outlet(1,"script send gui_pb2y set "+bp[1][pointCount - 1][1]);
-		outlet(1,"script send gui_pb2z set "+bp[1][pointCount - 1][2]);
-		outlet(1,"script send gui_pb3x set "+bp[2][pointCount - 1][0]);
-		outlet(1,"script send gui_pb3y set "+bp[2][pointCount - 1][1]);
-		outlet(1,"script send gui_pb3z set "+bp[2][pointCount - 1][2]);
+		outlet(1,"script send gui_pb1x set "+bezierPoints[0][pointCount - 1][0]);
+		outlet(1,"script send gui_pb1y set "+bezierPoints[0][pointCount - 1][1]);
+		outlet(1,"script send gui_pb1z set "+bezierPoints[0][pointCount - 1][2]);
+		outlet(1,"script send gui_pb2x set "+bezierPoints[1][pointCount - 1][0]);
+		outlet(1,"script send gui_pb2y set "+bezierPoints[1][pointCount - 1][1]);
+		outlet(1,"script send gui_pb2z set "+bezierPoints[1][pointCount - 1][2]);
+		outlet(1,"script send gui_pb3x set "+bezierPoints[2][pointCount - 1][0]);
+		outlet(1,"script send gui_pb3y set "+bezierPoints[2][pointCount - 1][1]);
+		outlet(1,"script send gui_pb3z set "+bezierPoints[2][pointCount - 1][2]);
 		
 		outlet(1,"script send gui_pb set pB "
-				+bp[0][pointCount - 1][0]+" "+bp[0][pointCount - 1][1]+" "+bp[0][pointCount - 1][2]+" "
-				+bp[1][pointCount - 1][0]+" "+bp[1][pointCount - 1][1]+" "+bp[1][pointCount - 1][2]+" "
-				+bp[2][pointCount - 1][0]+" "+bp[2][pointCount - 1][1]+" "+bp[2][pointCount - 1][2]+" ");
+				+bezierPoints[0][pointCount - 1][0]+" "+bezierPoints[0][pointCount - 1][1]+" "+bezierPoints[0][pointCount - 1][2]+" "
+				+bezierPoints[1][pointCount - 1][0]+" "+bezierPoints[1][pointCount - 1][1]+" "+bezierPoints[1][pointCount - 1][2]+" "
+				+bezierPoints[2][pointCount - 1][0]+" "+bezierPoints[2][pointCount - 1][1]+" "+bezierPoints[2][pointCount - 1][2]+" ");
 	}
 	
 		
