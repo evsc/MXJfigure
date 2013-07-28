@@ -1224,7 +1224,17 @@ public class FigurePaisley extends MaxObject {
 	
 
 	
-	
+	//notifyDeleted is called by the Max application
+	//when the user deletes your external from a Max patch
+	//or closes a Max patch of which your Java extern
+	//is a member.
+	public void notifyDeleted()
+	{
+		// free max peers. otherwise these will persist for a while
+		// until the garbage collector feels like cleaning up 
+		texture.freePeer();
+		sketch.freePeer();
+	}
 	
 	
 }
